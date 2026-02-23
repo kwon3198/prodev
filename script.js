@@ -102,10 +102,8 @@ function initTheme() {
 function buildRows() {
   const nights = daysBetween(checkInEl.value, checkOutEl.value);
   const guests = Number(guestsEl.value);
-  const destination = destinationEl.value;
 
   const rows = hotelsData
-    .filter((hotel) => matchesDestination(hotel, destination))
     .map((hotel) => {
       const offers = (hotel.channels || [])
         .map((channel) => normalizeOffer(channel, nights, guests))
@@ -306,7 +304,7 @@ async function loadSearchResults() {
       fallback: Boolean(payload?.meta?.fallback)
     });
   } catch {
-    hotelsData = FALLBACK_HOTELS;
+    hotelsData = FALLBACK_HOTELS.filter((hotel) => matchesDestination(hotel, destination));
     summaryEl.textContent = "실시간 API 응답이 없어 데모 데이터로 표시합니다.";
     render();
   } finally {
