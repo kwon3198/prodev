@@ -12,6 +12,39 @@
       --muted: #cbd5e1;
       --accent: #22d3ee;
       --accent-2: #0ea5e9;
+      --line-bg: rgba(15, 23, 42, 0.45);
+      --line-border: rgba(148, 163, 184, 0.25);
+      --line-title: #a5f3fc;
+      --hint: #cbd5e1;
+      --button-text: #082f49;
+      --app-border: rgba(255, 255, 255, 0.15);
+      --app-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
+      --toggle-bg: rgba(255, 255, 255, 0.16);
+      --toggle-text: #f8fafc;
+      --toggle-border: rgba(255, 255, 255, 0.25);
+      --select-bg: rgba(255, 255, 255, 0.95);
+      --select-text: #0f172a;
+    }
+
+    :root[data-theme="light"] {
+      --bg: linear-gradient(135deg, #f8fafc, #e2e8f0 45%, #cbd5e1);
+      --card: rgba(255, 255, 255, 0.85);
+      --text: #0f172a;
+      --muted: #334155;
+      --accent: #0ea5e9;
+      --accent-2: #0284c7;
+      --line-bg: rgba(226, 232, 240, 0.8);
+      --line-border: rgba(100, 116, 139, 0.3);
+      --line-title: #0369a1;
+      --hint: #475569;
+      --button-text: #f8fafc;
+      --app-border: rgba(148, 163, 184, 0.35);
+      --app-shadow: 0 20px 45px rgba(15, 23, 42, 0.15);
+      --toggle-bg: rgba(203, 213, 225, 0.8);
+      --toggle-text: #0f172a;
+      --toggle-border: rgba(100, 116, 139, 0.35);
+      --select-bg: #f8fafc;
+      --select-text: #0f172a;
     }
 
     * { box-sizing: border-box; }
@@ -30,11 +63,11 @@
     .app {
       width: min(760px, 100%);
       background: var(--card);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      border: 1px solid var(--app-border);
       backdrop-filter: blur(10px);
       border-radius: 18px;
       padding: 24px;
-      box-shadow: 0 20px 50px rgba(2, 6, 23, 0.35);
+      box-shadow: var(--app-shadow);
     }
 
     h1 {
@@ -69,13 +102,14 @@
     }
 
     select {
-      background: rgba(255, 255, 255, 0.95);
+      background: var(--select-bg);
+      color: var(--select-text);
       min-width: 90px;
     }
 
     button {
       background: linear-gradient(90deg, var(--accent), var(--accent-2));
-      color: #082f49;
+      color: var(--button-text);
       font-weight: 800;
       cursor: pointer;
       transition: transform 0.15s ease;
@@ -90,8 +124,8 @@
     }
 
     .line {
-      background: rgba(15, 23, 42, 0.45);
-      border: 1px solid rgba(148, 163, 184, 0.25);
+      background: var(--line-bg);
+      border: 1px solid var(--line-border);
       border-radius: 12px;
       padding: 10px;
       display: flex;
@@ -102,7 +136,7 @@
 
     .line-title {
       width: 56px;
-      color: #a5f3fc;
+      color: var(--line-title);
       font-weight: 700;
       font-size: 0.9rem;
     }
@@ -128,7 +162,15 @@
     .hint {
       margin-top: 14px;
       font-size: 0.83rem;
-      color: #cbd5e1;
+      color: var(--hint);
+    }
+
+    .theme-btn {
+      margin-left: auto;
+      background: var(--toggle-bg);
+      color: var(--toggle-text);
+      border: 1px solid var(--toggle-border);
+      font-weight: 700;
     }
   </style>
 </head>
@@ -146,6 +188,7 @@
         <option value="10">10줄</option>
       </select>
       <button id="generateBtn">번호 추천 받기</button>
+      <button id="themeBtn" class="theme-btn" type="button">라이트 모드</button>
     </section>
 
     <section id="results" class="result-list"></section>
@@ -156,6 +199,25 @@
     const resultsEl = document.getElementById("results");
     const countEl = document.getElementById("count");
     const generateBtn = document.getElementById("generateBtn");
+    const themeBtn = document.getElementById("themeBtn");
+    const root = document.documentElement;
+    const THEME_KEY = "lotto-theme";
+
+    function applyTheme(theme) {
+      root.setAttribute("data-theme", theme);
+      themeBtn.textContent = theme === "dark" ? "라이트 모드" : "다크 모드";
+      localStorage.setItem(THEME_KEY, theme);
+    }
+
+    function initTheme() {
+      const saved = localStorage.getItem(THEME_KEY);
+      if (saved === "dark" || saved === "light") {
+        applyTheme(saved);
+        return;
+      }
+      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      applyTheme(prefersDark ? "dark" : "light");
+    }
 
     function pickLine() {
       const nums = new Set();
@@ -200,6 +262,12 @@
       renderLines(Number(countEl.value));
     });
 
+    themeBtn.addEventListener("click", () => {
+      const next = root.getAttribute("data-theme") === "dark" ? "light" : "dark";
+      applyTheme(next);
+    });
+
+    initTheme();
     renderLines(Number(countEl.value));
   </script>
 </body>
