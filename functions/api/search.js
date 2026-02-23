@@ -8,6 +8,12 @@ const CITY_CODE_MAP = {
   jeju: "CJU"
 };
 
+const AGODA_AFFILIATE_DEFAULTS = {
+  site_id: "1922887",
+  tag: "f7739694-dbb7-41bd-aa27-be7c942ce354",
+  ds: "Un6s5oZyUN46s9FV"
+};
+
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -33,18 +39,21 @@ function nightsBetween(checkInDate, checkOutDate) {
 
 function destinationKey(destination) {
   const q = String(destination || "").toLowerCase().trim();
-  if (q.includes("서울") || q.includes("seoul")) return "seoul";
-  if (q.includes("도쿄") || q.includes("tokyo")) return "tokyo";
-  if (q.includes("부산") || q.includes("busan")) return "busan";
-  if (q.includes("오사카") || q.includes("osaka")) return "osaka";
-  if (q.includes("교토") || q.includes("kyoto")) return "kyoto";
-  if (q.includes("후쿠오카") || q.includes("fukuoka")) return "fukuoka";
-  if (q.includes("제주") || q.includes("jeju")) return "jeju";
+  if (q.includes("seoul") || q.includes("서울")) return "seoul";
+  if (q.includes("tokyo") || q.includes("도쿄")) return "tokyo";
+  if (q.includes("busan") || q.includes("부산")) return "busan";
+  if (q.includes("osaka") || q.includes("오사카")) return "osaka";
+  if (q.includes("kyoto") || q.includes("교토")) return "kyoto";
+  if (q.includes("fukuoka") || q.includes("후쿠오카")) return "fukuoka";
+  if (q.includes("jeju") || q.includes("제주")) return "jeju";
   return null;
 }
 
-function buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults }) {
+function buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults, env }) {
   const params = new URLSearchParams({
+    site_id: env.AGODA_SITE_ID || AGODA_AFFILIATE_DEFAULTS.site_id,
+    tag: env.AGODA_TAG || AGODA_AFFILIATE_DEFAULTS.tag,
+    ds: env.AGODA_DS || AGODA_AFFILIATE_DEFAULTS.ds,
     textToSearch: `${hotelName} ${destination}`,
     checkIn: checkInDate,
     checkOut: checkOutDate,
@@ -75,8 +84,7 @@ function normalizeHotelShape(raw, providerName) {
   const area = String(raw?.area || raw?.city || raw?.district || "").trim();
   if (!name || !area) return null;
 
-  const channels = Array.isArray(raw?.channels) ? raw.channels : [];
-  const normalizedChannels = channels
+  const normalizedChannels = (Array.isArray(raw?.channels) ? raw.channels : [])
     .map((c) => ({
       source: String(c.source || providerName),
       nightly: toNumeric(c.nightly),
@@ -112,16 +120,12 @@ async function fetchProxyProvider({ providerName, endpoint, apiKey, payload }) {
     body: JSON.stringify(payload)
   });
 
-  if (!res.ok) {
-    return { provider: providerName, hotels: [], reason: `http_${res.status}` };
-  }
+  if (!res.ok) return { provider: providerName, hotels: [], reason: `http_${res.status}` };
 
   const body = await res.json();
-  const rawHotels = Array.isArray(body?.hotels) ? body.hotels : [];
-  const hotels = rawHotels
+  const hotels = (Array.isArray(body?.hotels) ? body.hotels : [])
     .map((h) => normalizeHotelShape(h, providerName))
     .filter(Boolean);
-
   return { provider: providerName, hotels, reason: hotels.length > 0 ? "ok" : "empty" };
 }
 
@@ -139,8 +143,8 @@ async function getAmadeusToken(env) {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body: body.toString()
   });
-
   if (!tokenRes.ok) return null;
+
   const tokenJson = await tokenRes.json();
   return tokenJson.access_token || null;
 }
@@ -152,7 +156,6 @@ async function resolveCityCode(token, destination) {
   const url = new URL("https://test.api.amadeus.com/v1/reference-data/locations/cities");
   url.searchParams.set("keyword", destination);
   url.searchParams.set("max", "1");
-
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` }
   });
@@ -162,7 +165,36 @@ async function resolveCityCode(token, destination) {
   return Array.isArray(data?.data) && data.data[0]?.iataCode ? data.data[0].iataCode : null;
 }
 
-function channelFromAmadeusOffer({ offer, nights, hotelName, destination, checkInDate, checkOutDate, adults }) {
+async function fetchHotelIdsByCity(token, cityCode) {
+  const url = new URL("https://test.api.amadeus.com/v1/reference-data/locations/hotels/by-city");
+  url.searchParams.set("cityCode", cityCode);
+  url.searchParams.set("radius", "20");
+  url.searchParams.set("radiusUnit", "KM");
+  url.searchParams.set("hotelSource", "ALL");
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) return [];
+
+  const data = await res.json();
+  const hotels = Array.isArray(data?.data) ? data.data : [];
+  return hotels.map((h) => h.hotelId).filter(Boolean).slice(0, 120);
+}
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
+function areaFromAmadeusHotel(hotel) {
+  const cityName = hotel?.address?.cityName || hotel?.cityCode || "Unknown";
+  const lines = Array.isArray(hotel?.address?.lines) ? hotel.address.lines : [];
+  return lines[0] ? `${cityName} · ${lines[0]}` : cityName;
+}
+
+function channelFromAmadeusOffer({ offer, nights, hotelName, destination, checkInDate, checkOutDate, adults, env }) {
   const total = toNumeric(offer?.price?.total);
   const taxes = Array.isArray(offer?.price?.taxes) ? offer.price.taxes : [];
   const taxAmount = taxes.reduce((acc, t) => acc + toNumeric(t?.amount), 0);
@@ -184,41 +216,61 @@ function channelFromAmadeusOffer({ offer, nights, hotelName, destination, checkI
     refundable,
     breakfast,
     payAtHotel,
-    link: buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults })
+    link: buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults, env })
   };
 }
 
-function areaFromAmadeusHotel(hotel) {
-  const cityName = hotel?.address?.cityName || hotel?.cityCode || "Unknown";
-  const lines = Array.isArray(hotel?.address?.lines) ? hotel.address.lines : [];
-  return lines[0] ? `${cityName} · ${lines[0]}` : cityName;
-}
-
-async function fetchAmadeusHotels({ token, destination, checkInDate, checkOutDate, adults }) {
-  const cityCode = await resolveCityCode(token, destination);
-  if (!cityCode) return { provider: "amadeus", hotels: [], reason: "city_code_not_found" };
-
+async function fetchAmadeusOffers(token, query) {
   const url = new URL("https://test.api.amadeus.com/v3/shopping/hotel-offers");
-  url.searchParams.set("cityCode", cityCode);
-  url.searchParams.set("checkInDate", checkInDate);
-  url.searchParams.set("checkOutDate", checkOutDate);
-  url.searchParams.set("adults", String(adults));
-  url.searchParams.set("roomQuantity", "1");
-  url.searchParams.set("bestRateOnly", "false");
-  url.searchParams.set("view", "FULL");
-
+  Object.entries(query).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
+  });
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` }
   });
-
-  if (!res.ok) return { provider: "amadeus", hotels: [], reason: `http_${res.status}`, cityCode };
-
+  if (!res.ok) return [];
   const data = await res.json();
-  const entries = Array.isArray(data?.data) ? data.data : [];
-  const nights = nightsBetween(checkInDate, checkOutDate);
-  const hotels = [];
+  return Array.isArray(data?.data) ? data.data : [];
+}
 
-  for (const item of entries.slice(0, 100)) {
+async function fetchAmadeusHotels({ token, destination, checkInDate, checkOutDate, adults, env }) {
+  const cityCode = await resolveCityCode(token, destination);
+  if (!cityCode) return { provider: "amadeus", hotels: [], reason: "city_code_not_found" };
+
+  const nights = nightsBetween(checkInDate, checkOutDate);
+  const hotelIds = await fetchHotelIdsByCity(token, cityCode);
+  let entries = [];
+
+  if (hotelIds.length > 0) {
+    const groups = chunk(hotelIds, 20).slice(0, 6);
+    for (const ids of groups) {
+      const data = await fetchAmadeusOffers(token, {
+        hotelIds: ids.join(","),
+        checkInDate,
+        checkOutDate,
+        adults,
+        roomQuantity: 1,
+        bestRateOnly: false,
+        view: "FULL"
+      });
+      entries.push(...data);
+    }
+  }
+
+  if (entries.length === 0) {
+    entries = await fetchAmadeusOffers(token, {
+      cityCode,
+      checkInDate,
+      checkOutDate,
+      adults,
+      roomQuantity: 1,
+      bestRateOnly: false,
+      view: "FULL"
+    });
+  }
+
+  const hotels = [];
+  for (const item of entries.slice(0, 150)) {
     const hotelInfo = item?.hotel || {};
     const hotelName = hotelInfo.name || "Unnamed Hotel";
     const offers = Array.isArray(item?.offers) ? item.offers : [];
@@ -231,10 +283,11 @@ async function fetchAmadeusHotels({ token, destination, checkInDate, checkOutDat
         destination,
         checkInDate,
         checkOutDate,
-        adults
+        adults,
+        env
       });
-
       if (channel.nightly <= 0) continue;
+
       hotels.push({
         id: hotelInfo.hotelId || crypto.randomUUID(),
         name: hotelName,
@@ -266,10 +319,10 @@ export async function onRequestGet(context) {
     return json({ error: "destination/checkIn/checkOut are required" }, 400);
   }
 
-  const token = await getAmadeusToken(env);
   const providerStatus = [];
   const providerHotels = [];
 
+  const token = await getAmadeusToken(env);
   if (token) {
     try {
       const amadeus = await fetchAmadeusHotels({
@@ -277,7 +330,8 @@ export async function onRequestGet(context) {
         destination,
         checkInDate,
         checkOutDate,
-        adults
+        adults,
+        env
       });
       providerStatus.push({
         provider: "amadeus",
@@ -300,21 +354,9 @@ export async function onRequestGet(context) {
 
   const proxyPayload = { destination, checkInDate, checkOutDate, adults };
   const proxyProviders = [
-    {
-      providerName: "agoda",
-      endpoint: env.AGODA_SEARCH_ENDPOINT,
-      apiKey: env.AGODA_API_KEY
-    },
-    {
-      providerName: "booking",
-      endpoint: env.BOOKING_SEARCH_ENDPOINT,
-      apiKey: env.BOOKING_API_KEY
-    },
-    {
-      providerName: "expedia",
-      endpoint: env.EXPEDIA_SEARCH_ENDPOINT,
-      apiKey: env.EXPEDIA_API_KEY
-    }
+    { providerName: "agoda", endpoint: env.AGODA_SEARCH_ENDPOINT, apiKey: env.AGODA_API_KEY },
+    { providerName: "booking", endpoint: env.BOOKING_SEARCH_ENDPOINT, apiKey: env.BOOKING_API_KEY },
+    { providerName: "expedia", endpoint: env.EXPEDIA_SEARCH_ENDPOINT, apiKey: env.EXPEDIA_API_KEY }
   ];
 
   const settled = await Promise.allSettled(

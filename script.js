@@ -226,7 +226,7 @@ async function trackEvent(name, properties = {}) {
       body: JSON.stringify({ name, properties })
     });
   } catch {
-    // ignore
+    // ignore analytics failures
   }
 }
 
@@ -279,8 +279,7 @@ async function loadSearchResults() {
     const payload = await response.json();
     if (!response.ok) throw new Error(payload.error || "search_failed");
 
-    const normalized = normalizeApiHotels(payload.hotels);
-    hotelsData = normalized;
+    hotelsData = normalizeApiHotels(payload.hotels);
     render();
 
     await trackEvent("search_submitted", {
@@ -291,10 +290,10 @@ async function loadSearchResults() {
       provider: payload?.meta?.provider || "unknown",
       fallback: Boolean(payload?.meta?.fallback)
     });
-  } catch (error) {
+  } catch {
     hotelsData = [];
     summaryEl.textContent = "실시간 호텔 결과를 가져오지 못했습니다.";
-    resultsEl.innerHTML = '<div class="empty">실데이터 전용 모드입니다. 관리자에게 API 키/제휴 연동(Agoda, Booking, Expedia, Amadeus) 설정 여부를 확인해 주세요.</div>';
+    resultsEl.innerHTML = '<div class="empty">실데이터 전용 모드입니다. API/제휴 연동 설정을 확인해 주세요.</div>';
   } finally {
     setLoadingState(false);
   }
