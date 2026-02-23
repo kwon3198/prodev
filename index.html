@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>StayScope | È£ÅÚ ¸ÞÅ¸¼­Ä¡ MVP</title>
+  <title>StayScope | í˜¸í…” ë©”íƒ€ì„œì¹˜ MVP</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -17,54 +17,54 @@
     <header class="hero">
       <p class="eyebrow">META HOTEL SEARCH</p>
       <h1>StayScope</h1>
-      <p class="hero-copy">¾Æ°í´Ù/±¸±Û¼÷¼Ò/³×ÀÌ¹ö/°ø½Ä¸ôÃ³·³ Ã¤³Îº° °¡°Ý Â÷ÀÌ¸¦ ÇÑ ¹ø¿¡ ºñ±³ÇÏ´Â ½ºÄ³³Ê µ¥¸ð</p>
-      <button id="themeBtn" class="theme-btn" type="button">¶óÀÌÆ® ¸ðµå</button>
+      <p class="hero-copy">ì•„ê³ ë‹¤/êµ¬ê¸€ìˆ™ì†Œ/ë„¤ì´ë²„/ê³µì‹ëª°ì²˜ëŸ¼ ì±„ë„ë³„ ê°€ê²© ì°¨ì´ë¥¼ í•œ ë²ˆì— ë¹„êµí•˜ëŠ” ìŠ¤ìºë„ˆ ë°ëª¨</p>
+      <button id="themeBtn" class="theme-btn" type="button">ë¼ì´íŠ¸ ëª¨ë“œ</button>
     </header>
 
     <section class="search-panel">
       <div class="field">
-        <label for="destination">¾îµð·Î °¡¼¼¿ä?</label>
-        <input id="destination" type="text" placeholder="¿¹: Tokyo, Seoul, Busan" />
+        <label for="destination">ì–´ë””ë¡œ ê°€ì„¸ìš”?</label>
+        <input id="destination" type="text" placeholder="ì˜ˆ: Tokyo, Seoul, Busan" />
       </div>
       <div class="field">
-        <label for="checkIn">Ã¼Å©ÀÎ</label>
+        <label for="checkIn">ì²´í¬ì¸</label>
         <input id="checkIn" type="date" />
       </div>
       <div class="field">
-        <label for="checkOut">Ã¼Å©¾Æ¿ô</label>
+        <label for="checkOut">ì²´í¬ì•„ì›ƒ</label>
         <input id="checkOut" type="date" />
       </div>
       <div class="field">
-        <label for="guests">ÀÎ¿ø</label>
+        <label for="guests">ì¸ì›</label>
         <select id="guests">
-          <option value="1">¼ºÀÎ 1</option>
-          <option value="2" selected>¼ºÀÎ 2</option>
-          <option value="3">¼ºÀÎ 3</option>
-          <option value="4">¼ºÀÎ 4</option>
+          <option value="1">ì„±ì¸ 1</option>
+          <option value="2" selected>ì„±ì¸ 2</option>
+          <option value="3">ì„±ì¸ 3</option>
+          <option value="4">ì„±ì¸ 4</option>
         </select>
       </div>
-      <button id="searchBtn" class="search-btn" type="button">°¡°Ý ½ºÄµ</button>
+      <button id="searchBtn" class="search-btn" type="button">ê°€ê²© ìŠ¤ìº”</button>
     </section>
 
     <section class="toolbar">
       <div class="filters">
-        <label><input id="refundableOnly" type="checkbox" /> ¹«·á Ãë¼Ò¸¸</label>
-        <label><input id="breakfastOnly" type="checkbox" /> Á¶½Ä Æ÷ÇÔ¸¸</label>
-        <label><input id="payAtHotelOnly" type="checkbox" /> ÇöÀå°áÁ¦¸¸</label>
+        <label><input id="refundableOnly" type="checkbox" /> ë¬´ë£Œ ì·¨ì†Œë§Œ</label>
+        <label><input id="breakfastOnly" type="checkbox" /> ì¡°ì‹ í¬í•¨ë§Œ</label>
+        <label><input id="payAtHotelOnly" type="checkbox" /> í˜„ìž¥ê²°ì œë§Œ</label>
       </div>
       <div class="sort-wrap">
-        <label for="sortBy">Á¤·Ä</label>
+        <label for="sortBy">ì •ë ¬</label>
         <select id="sortBy">
-          <option value="price">ÃÑ °áÁ¦±Ý¾× ³·Àº¼ø</option>
-          <option value="rating">ÆòÁ¡ ³ôÀº¼ø</option>
-          <option value="gap">Ã¤³Î °¡°ÝÂ÷ Å«¼ø</option>
+          <option value="price">ì´ ê²°ì œê¸ˆì•¡ ë‚®ì€ìˆœ</option>
+          <option value="rating">í‰ì  ë†’ì€ìˆœ</option>
+          <option value="gap">ì±„ë„ ê°€ê²©ì°¨ í°ìˆœ</option>
         </select>
       </div>
     </section>
 
     <section class="meta">
-      <p id="summary">°Ë»ö °á°ú¸¦ ºÒ·¯¿À´Â Áß...</p>
-      <p class="caption">ÇöÀç´Â µ¥¸ð µ¥ÀÌÅÍ ±â¹Ý MVPÀÔ´Ï´Ù. ½ÇÁ¦ ¼­ºñ½º´Â °ø½Ä Á¦ÈÞ/API ¿¬µ¿ÀÌ ÇÊ¿äÇÕ´Ï´Ù.</p>
+      <p id="summary">ê²€ìƒ‰ ê²°ê³¼ë¥¼ ë¶ˆëŸ¬ì˜¤ëŠ” ì¤‘...</p>
+      <p class="caption">í˜„ìž¬ëŠ” ë°ëª¨ ë°ì´í„° ê¸°ë°˜ MVPìž…ë‹ˆë‹¤. ì‹¤ì œ ì„œë¹„ìŠ¤ëŠ” ê³µì‹ ì œíœ´/API ì—°ë™ì´ í•„ìš”í•©ë‹ˆë‹¤.</p>
     </section>
 
     <section id="results" class="results"></section>

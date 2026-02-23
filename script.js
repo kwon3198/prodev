@@ -70,7 +70,7 @@ const HOTELS = [
 ];
 
 function formatKrw(value) {
-  return `${Math.round(value).toLocaleString("ko-KR")}¿ø`;
+  return `${Math.round(value).toLocaleString("ko-KR")}ì›`;
 }
 
 function daysBetween(startStr, endStr) {
@@ -104,7 +104,7 @@ function hotelMatchesDestination(hotel, query) {
 
 function applyTheme(theme) {
   root.setAttribute("data-theme", theme);
-  themeBtn.textContent = theme === "dark" ? "¶óÀÌÆ® ¸ğµå" : "´ÙÅ© ¸ğµå";
+  themeBtn.textContent = theme === "dark" ? "ë¼ì´íŠ¸ ëª¨ë“œ" : "ë‹¤í¬ ëª¨ë“œ";
   localStorage.setItem(THEME_KEY, theme);
 }
 
@@ -160,14 +160,14 @@ function render() {
   const rows = buildRows();
 
   if (rows.length === 0) {
-    summaryEl.textContent = "Á¶°Ç¿¡ ¸Â´Â È£ÅÚÀÌ ¾ø½À´Ï´Ù.";
-    resultsEl.innerHTML = '<div class="empty">ÇÊÅÍ¸¦ ÁÙÀÌ°Å³ª ¸ñÀûÁö¸¦ ´Ù½Ã ÀÔ·ÂÇØº¸¼¼¿ä.</div>';
+    summaryEl.textContent = "ì¡°ê±´ì— ë§ëŠ” í˜¸í…”ì´ ì—†ìŠµë‹ˆë‹¤.";
+    resultsEl.innerHTML = '<div class="empty">í•„í„°ë¥¼ ì¤„ì´ê±°ë‚˜ ëª©ì ì§€ë¥¼ ë‹¤ì‹œ ì…ë ¥í•´ë³´ì„¸ìš”.</div>';
     return;
   }
 
   const cheapestAll = rows.reduce((acc, row) => (row.cheapest.total < acc ? row.cheapest.total : acc), Number.POSITIVE_INFINITY);
 
-  summaryEl.textContent = `${rows.length}°³ È£ÅÚ, ÃÖÀú ${formatKrw(cheapestAll)}ºÎÅÍ (${rows[0].nights}¹Ú ±âÁØ)`;
+  summaryEl.textContent = `${rows.length}ê°œ í˜¸í…”, ìµœì € ${formatKrw(cheapestAll)}ë¶€í„° (${rows[0].nights}ë°• ê¸°ì¤€)`;
 
   resultsEl.innerHTML = rows
     .map((row, index) => {
@@ -175,11 +175,11 @@ function render() {
         <div class="hotel-head">
           <div>
             <h2 class="hotel-title">${row.hotel.name}</h2>
-            <p class="sub">${row.hotel.area} ¡¤ ÆòÁ¡ ${row.hotel.rating} (${row.hotel.reviews.toLocaleString("ko-KR")} ¸®ºä)</p>
+            <p class="sub">${row.hotel.area} Â· í‰ì  ${row.hotel.rating} (${row.hotel.reviews.toLocaleString("ko-KR")} ë¦¬ë·°)</p>
           </div>
           <div class="price-badge">
             <strong>${formatKrw(row.cheapest.total)}</strong>
-            <span>${row.cheapest.source} ÃÖÀú°¡ ¡¤ Ã¤³Î°£ ÃÖ´ë ${formatKrw(row.spread)} Â÷ÀÌ</span>
+            <span>${row.cheapest.source} ìµœì €ê°€ Â· ì±„ë„ê°„ ìµœëŒ€ ${formatKrw(row.spread)} ì°¨ì´</span>
           </div>
         </div>
       `;
@@ -187,11 +187,11 @@ function render() {
       const offerRows = row.offers
         .map((offer) => {
           const diff = offer.total - row.cheapest.total;
-          const priceDiff = diff === 0 ? '<span class="best">ÃÖÀú°¡</span>' : `<span class="bad">+${formatKrw(diff)}</span>`;
+          const priceDiff = diff === 0 ? '<span class="best">ìµœì €ê°€</span>' : `<span class="bad">+${formatKrw(diff)}</span>`;
           const policyTags = [
-            offer.refundable ? "¹«·áÃë¼Ò" : "È¯ºÒºÒ°¡",
-            offer.breakfast ? "Á¶½ÄÆ÷ÇÔ" : "·ë¿Â¸®",
-            offer.payAtHotel ? "ÇöÀå°áÁ¦" : "¼±°áÁ¦"
+            offer.refundable ? "ë¬´ë£Œì·¨ì†Œ" : "í™˜ë¶ˆë¶ˆê°€",
+            offer.breakfast ? "ì¡°ì‹í¬í•¨" : "ë£¸ì˜¨ë¦¬",
+            offer.payAtHotel ? "í˜„ì¥ê²°ì œ" : "ì„ ê²°ì œ"
           ];
 
           return `
@@ -201,7 +201,7 @@ function render() {
                 ${policyTags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
               </div>
               <div class="offer-price">${formatKrw(offer.total)} ${priceDiff}</div>
-              <a class="offer-link" href="${offer.link}" target="_blank" rel="noreferrer">ÀÌ Ã¤³Î·Î ÀÌµ¿</a>
+              <a class="offer-link" href="${offer.link}" target="_blank" rel="noreferrer">ì´ ì±„ë„ë¡œ ì´ë™</a>
             </div>
           `;
         })
