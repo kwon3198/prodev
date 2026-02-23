@@ -21,42 +21,6 @@ let suggestTimer = null;
 let hotelsData = [];
 let hasSearched = false;
 
-const FALLBACK_PRESETS = {
-  seoul: { cityLabel: "서울", basePrice: 118000, areas: ["강남", "명동", "홍대", "잠실", "여의도", "광화문"] },
-  tokyo: { cityLabel: "도쿄", basePrice: 132000, areas: ["시부야", "신주쿠", "긴자", "아사쿠사", "우에노"] },
-  busan: { cityLabel: "부산", basePrice: 99000, areas: ["해운대", "광안리", "서면", "남포동"] }
-};
-
-function buildClientFallbackHotels(destination) {
-  const q = String(destination || "").toLowerCase();
-  const key = q.includes("서울") || q.includes("seoul") ? "seoul" : q.includes("도쿄") || q.includes("tokyo") ? "tokyo" : q.includes("부산") || q.includes("busan") ? "busan" : "seoul";
-  const preset = FALLBACK_PRESETS[key];
-  const hotels = [];
-  let idx = 0;
-
-  for (const area of preset.areas) {
-    for (let i = 1; i <= 3; i += 1) {
-      idx += 1;
-      const base = preset.basePrice + idx * 1700 + i * 1300;
-      hotels.push({
-        id: `client-${key}-${area}-${i}`,
-        name: `${area} ${["스테이", "호텔", "스위트"][i % 3]} ${i}`,
-        area: `${preset.cityLabel} · ${area}`,
-        rating: Number((3.9 + ((idx % 10) * 0.1)).toFixed(1)),
-        reviews: 250 + idx * 42,
-        channels: [
-          { source: "Agoda", nightly: base - 2000, taxRate: 0.1, fee: 9000, refundable: idx % 2 === 0, breakfast: idx % 3 === 0, payAtHotel: false, link: "https://www.agoda.com" },
-          { source: "Google Hotels", nightly: base + 1300, taxRate: 0.1, fee: 7000, refundable: true, breakfast: idx % 2 === 1, payAtHotel: false, link: "https://www.google.com/travel/hotels" },
-          { source: "Naver Stay", nightly: base - 600, taxRate: 0.1, fee: 12000, refundable: idx % 3 !== 0, breakfast: idx % 4 === 0, payAtHotel: false, link: "https://travel.naver.com" },
-          { source: "Official", nightly: base + 2400, taxRate: 0.1, fee: 0, refundable: true, breakfast: idx % 2 === 0, payAtHotel: true, link: "https://example.com" }
-        ]
-      });
-    }
-  }
-
-  return hotels;
-}
-
 function formatKrw(value) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
@@ -213,7 +177,7 @@ function render() {
                 <div class="channel-tags">${tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
               </div>
               <div class="channel-price">${formatKrw(offer.total)} <span class="${diffClass}">${diffText}</span></div>
-              <a class="channel-select" href="${offer.link}" target="_blank" rel="noreferrer">이 가격 선택</a>
+              <a class="channel-select" href="${offer.link}" target="_blank" rel="noreferrer">아고다에서 검색</a>
             </div>
           `;
         })
@@ -307,7 +271,7 @@ async function loadSearchResults() {
     if (!response.ok) throw new Error(payload.error || "search_failed");
 
     const normalized = normalizeApiHotels(payload.hotels);
-    hotelsData = normalized.length > 0 ? normalized : buildClientFallbackHotels(destination);
+    hotelsData = normalized;
     render();
 
     await trackEvent("search_submitted", {
@@ -318,10 +282,15 @@ async function loadSearchResults() {
       provider: payload?.meta?.provider || "unknown",
       fallback: Boolean(payload?.meta?.fallback)
     });
-  } catch {
-    hotelsData = buildClientFallbackHotels(destination);
-    summaryEl.textContent = "실시간 응답이 없어 데모 목록으로 표시합니다.";
-    render();
+  } catch (error) {
+    hotelsData = [];
+    const message = String(error?.message || "");
+    if (message.includes("missing_amadeus_credentials")) {
+      summaryEl.textContent = "실시간 API 키가 설정되지 않았습니다. 관리자에게 AMADEUS 키 설정을 요청해 주세요.";
+    } else {
+      summaryEl.textContent = "실시간 호텔 결과를 가져오지 못했습니다. 검색 조건을 바꿔 다시 시도해 주세요.";
+    }
+    resultsEl.innerHTML = '<div class="empty">현재는 실데이터만 표시합니다. 조건/날짜를 바꿔 다시 검색해 주세요.</div>';
   } finally {
     setLoadingState(false);
   }

@@ -1,26 +1,3 @@
-const DEMO_CATALOG = {
-  seoul: {
-    cityLabel: "서울",
-    basePrice: 118000,
-    areas: ["강남", "명동", "홍대", "잠실", "여의도", "광화문", "이태원", "동대문"]
-  },
-  tokyo: {
-    cityLabel: "도쿄",
-    basePrice: 132000,
-    areas: ["시부야", "신주쿠", "긴자", "아사쿠사", "우에노", "롯폰기", "이케부쿠로", "도쿄역"]
-  },
-  busan: {
-    cityLabel: "부산",
-    basePrice: 99000,
-    areas: ["해운대", "광안리", "서면", "남포동", "송정", "기장"]
-  },
-  osaka: {
-    cityLabel: "오사카",
-    basePrice: 121000,
-    areas: ["난바", "우메다", "신사이바시", "덴노지", "신오사카", "교바시"]
-  }
-};
-
 const CITY_CODE_MAP = {
   tokyo: "TYO",
   seoul: "SEL",
@@ -41,6 +18,11 @@ function json(data, status = 200) {
   });
 }
 
+function toNumeric(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
 function nightsBetween(checkInDate, checkOutDate) {
   const start = new Date(checkInDate);
   const end = new Date(checkOutDate);
@@ -49,96 +31,29 @@ function nightsBetween(checkInDate, checkOutDate) {
   return Math.max(1, nights);
 }
 
-function destinationMatches(hotel, destination) {
-  if (!destination) return true;
-  const q = destination.toLowerCase();
-  return `${hotel.name} ${hotel.area}`.toLowerCase().includes(q);
-}
-
-function fallbackResponse(destination) {
-  const list = buildDemoHotels(destination);
-  return list.filter((hotel) => destinationMatches(hotel, destination));
-}
-
 function getDestinationKey(destination) {
   const q = String(destination || "").toLowerCase().trim();
   if (q.includes("서울") || q.includes("seoul")) return "seoul";
   if (q.includes("도쿄") || q.includes("tokyo")) return "tokyo";
   if (q.includes("부산") || q.includes("busan")) return "busan";
   if (q.includes("오사카") || q.includes("osaka")) return "osaka";
+  if (q.includes("교토") || q.includes("kyoto")) return "kyoto";
+  if (q.includes("후쿠오카") || q.includes("fukuoka")) return "fukuoka";
+  if (q.includes("제주") || q.includes("jeju")) return "jeju";
   return null;
 }
 
-function buildChannels(basePrice, idx) {
-  const delta = (idx % 5) * 2200;
-  return [
-    {
-      source: "Agoda",
-      nightly: basePrice - 2500 + delta,
-      taxRate: 0.1,
-      fee: 9000 + (idx % 3) * 1000,
-      refundable: idx % 2 === 0,
-      breakfast: idx % 3 === 0,
-      payAtHotel: false,
-      link: "https://www.agoda.com"
-    },
-    {
-      source: "Google Hotels",
-      nightly: basePrice + 1800 + delta,
-      taxRate: 0.1,
-      fee: 6500 + (idx % 4) * 800,
-      refundable: true,
-      breakfast: idx % 2 === 1,
-      payAtHotel: false,
-      link: "https://www.google.com/travel/hotels"
-    },
-    {
-      source: "Naver Stay",
-      nightly: basePrice - 1200 + delta,
-      taxRate: 0.1,
-      fee: 11000 + (idx % 2) * 2000,
-      refundable: idx % 3 !== 0,
-      breakfast: idx % 4 === 0,
-      payAtHotel: false,
-      link: "https://travel.naver.com"
-    },
-    {
-      source: "Official",
-      nightly: basePrice + 3200 + delta,
-      taxRate: 0.1,
-      fee: 0,
-      refundable: true,
-      breakfast: idx % 2 === 0,
-      payAtHotel: true,
-      link: "https://example.com"
-    }
-  ];
-}
-
-function buildDemoHotels(destination) {
-  const key = getDestinationKey(destination);
-  const preset = key ? DEMO_CATALOG[key] : null;
-  const cityLabel = preset?.cityLabel || String(destination || "검색도시");
-  const areas = preset?.areas || ["시내", "역세권", "비즈니스지구", "관광지 인근"];
-  const basePrice = preset?.basePrice || 112000;
-  const hotels = [];
-
-  let idx = 0;
-  for (const area of areas) {
-    for (let i = 1; i <= 3; i += 1) {
-      idx += 1;
-      const price = basePrice + idx * 1800 + i * 1200;
-      hotels.push({
-        id: `demo-${cityLabel}-${area}-${i}`.replace(/\s+/g, "-").toLowerCase(),
-        name: `${area} ${["스테이", "호텔", "스위트"][i % 3]} ${i}`,
-        area: `${cityLabel} · ${area}`,
-        rating: Number((3.9 + ((idx % 12) * 0.1)).toFixed(1)),
-        reviews: 380 + idx * 47,
-        channels: buildChannels(price, idx)
-      });
-    }
-  }
-  return hotels;
+function buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults }) {
+  // Agoda 공개 API 없이 가능한 범위에서 호텔명+날짜 기반 검색 딥링크.
+  const q = encodeURIComponent(`${hotelName} ${destination}`);
+  const p = new URLSearchParams({
+    textToSearch: `${hotelName} ${destination}`,
+    checkIn: checkInDate,
+    checkOut: checkOutDate,
+    adults: String(adults),
+    rooms: "1"
+  });
+  return `https://www.agoda.com/ko-kr/search?${p.toString()}#${q}`;
 }
 
 async function getAmadeusToken(env) {
@@ -164,10 +79,9 @@ async function getAmadeusToken(env) {
 }
 
 async function resolveCityCode(token, destination) {
-  const keyword = (destination || "").trim().toLowerCase();
-  if (CITY_CODE_MAP[keyword]) return CITY_CODE_MAP[keyword];
+  const mapped = getDestinationKey(destination);
+  if (mapped && CITY_CODE_MAP[mapped]) return CITY_CODE_MAP[mapped];
 
-  if (!keyword) return null;
   const url = new URL("https://test.api.amadeus.com/v1/reference-data/locations/cities");
   url.searchParams.set("keyword", destination);
   url.searchParams.set("max", "1");
@@ -182,16 +96,22 @@ async function resolveCityCode(token, destination) {
   return first?.iataCode || null;
 }
 
-function toNumeric(value) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : 0;
+function mergeHotelsById(hotels) {
+  const map = new Map();
+  for (const hotel of hotels) {
+    if (!map.has(hotel.id)) {
+      map.set(hotel.id, hotel);
+      continue;
+    }
+    map.get(hotel.id).channels.push(...hotel.channels);
+  }
+  return [...map.values()];
 }
 
-function channelFromOffer(offer, nights) {
+function channelFromOffer({ offer, nights, hotelName, destination, checkInDate, checkOutDate, adults }) {
   const total = toNumeric(offer?.price?.total);
   const taxes = Array.isArray(offer?.price?.taxes) ? offer.price.taxes : [];
   const taxAmount = taxes.reduce((acc, t) => acc + toNumeric(t?.amount), 0);
-  const fee = 0;
   const nightly = nights > 0 ? total / nights : total;
 
   const roomText = [
@@ -208,50 +128,25 @@ function channelFromOffer(offer, nights) {
   const refundable = !cancellationType.includes("NON_REFUNDABLE");
 
   return {
-    source: "Amadeus",
+    source: "Amadeus Live",
     nightly,
     taxRate: total > 0 ? taxAmount / total : 0,
-    fee,
+    fee: 0,
     refundable,
     breakfast,
     payAtHotel,
-    link: offer?.self || "https://developers.amadeus.com/"
+    link: buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults })
   };
 }
 
-function hotelFromOffer(offer, channel) {
-  const hotel = offer?.hotel || {};
-  return {
-    id: hotel.hotelId || crypto.randomUUID(),
-    name: hotel.name || "Unnamed Hotel",
-    area: hotel.cityCode || "Unknown",
-    rating: toNumeric(hotel.rating),
-    reviews: 0,
-    channels: [channel]
-  };
+function areaFromHotel(hotel) {
+  const cityName = hotel?.address?.cityName || hotel?.cityCode || "Unknown";
+  const lines = Array.isArray(hotel?.address?.lines) ? hotel.address.lines : [];
+  const district = lines[0] || "";
+  return district ? `${cityName} · ${district}` : cityName;
 }
 
-function assignAreaByCityCode(cityCode, index) {
-  const key = cityCode === "SEL" ? "seoul" : cityCode === "TYO" ? "tokyo" : cityCode === "PUS" ? "busan" : cityCode === "OSA" ? "osaka" : null;
-  if (!key) return cityCode || "Unknown";
-  const preset = DEMO_CATALOG[key];
-  const area = preset.areas[index % preset.areas.length];
-  return `${preset.cityLabel} · ${area}`;
-}
-
-function mergeHotelsById(hotels) {
-  const map = new Map();
-  for (const hotel of hotels) {
-    if (!map.has(hotel.id)) {
-      map.set(hotel.id, hotel);
-      continue;
-    }
-    map.get(hotel.id).channels.push(...hotel.channels);
-  }
-  return [...map.values()];
-}
-
-async function fetchAmadeusHotels({ token, cityCode, checkInDate, checkOutDate, adults }) {
+async function fetchAmadeusHotels({ token, cityCode, destination, checkInDate, checkOutDate, adults }) {
   const url = new URL("https://test.api.amadeus.com/v3/shopping/hotel-offers");
   url.searchParams.set("cityCode", cityCode);
   url.searchParams.set("checkInDate", checkInDate);
@@ -264,24 +159,39 @@ async function fetchAmadeusHotels({ token, cityCode, checkInDate, checkOutDate, 
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` }
   });
-
   if (!res.ok) return [];
+
   const data = await res.json();
   const offers = Array.isArray(data.data) ? data.data : [];
   const nights = nightsBetween(checkInDate, checkOutDate);
   const hotels = [];
 
-  for (const item of offers.slice(0, 30)) {
+  for (const item of offers.slice(0, 80)) {
+    const hotelInfo = item?.hotel || {};
+    const hotelName = hotelInfo.name || "Unnamed Hotel";
     const list = Array.isArray(item?.offers) ? item.offers : [];
-    for (const offer of list.slice(0, 3)) {
-      const channel = channelFromOffer(offer, nights);
-      hotels.push(hotelFromOffer(item, channel));
+    for (const offer of list.slice(0, 4)) {
+      const channel = channelFromOffer({
+        offer,
+        nights,
+        hotelName,
+        destination,
+        checkInDate,
+        checkOutDate,
+        adults
+      });
+      hotels.push({
+        id: hotelInfo.hotelId || crypto.randomUUID(),
+        name: hotelName,
+        area: areaFromHotel(hotelInfo),
+        rating: toNumeric(hotelInfo.rating),
+        reviews: 0,
+        channels: [channel]
+      });
     }
   }
 
-  return mergeHotelsById(hotels)
-    .map((hotel, index) => ({ ...hotel, area: assignAreaByCityCode(cityCode, index) }))
-    .filter((hotel) => hotel.channels.length > 0);
+  return mergeHotelsById(hotels).filter((hotel) => hotel.channels.length > 0);
 }
 
 export async function onRequestGet(context) {
@@ -296,46 +206,38 @@ export async function onRequestGet(context) {
     return json({ error: "destination/checkIn/checkOut are required" }, 400);
   }
 
+  const token = await getAmadeusToken(env);
+  if (!token) {
+    return json({ error: "missing_amadeus_credentials" }, 503);
+  }
+
+  const cityCode = await resolveCityCode(token, destination);
+  if (!cityCode) {
+    return json({ error: "city_code_not_found" }, 404);
+  }
+
   try {
-    const token = await getAmadeusToken(env);
-    if (!token) {
-      return json({
-        hotels: fallbackResponse(destination),
-        meta: { provider: "demo", fallback: true, reason: "missing_amadeus_credentials" }
-      });
-    }
-
-    const cityCode = await resolveCityCode(token, destination);
-    if (!cityCode) {
-      return json({
-        hotels: fallbackResponse(destination),
-        meta: { provider: "demo", fallback: true, reason: "city_code_not_found" }
-      });
-    }
-
     const hotels = await fetchAmadeusHotels({
       token,
       cityCode,
+      destination,
       checkInDate,
       checkOutDate,
       adults
     });
 
-    if (hotels.length < 8) {
-      return json({
-        hotels: buildDemoHotels(destination),
-        meta: { provider: "demo", fallback: true, reason: "insufficient_live_offers", cityCode }
-      });
+    if (hotels.length === 0) {
+      return json({ error: "no_live_offers" }, 404);
     }
 
     return json({
       hotels,
-      meta: { provider: "amadeus-test", fallback: false, cityCode }
+      meta: { provider: "amadeus-live", fallback: false, cityCode }
     });
   } catch (error) {
     return json({
-      hotels: fallbackResponse(destination),
-      meta: { provider: "demo", fallback: true, reason: "upstream_error", message: String(error?.message || error) }
-    });
+      error: "upstream_error",
+      message: String(error?.message || error)
+    }, 502);
   }
 }
