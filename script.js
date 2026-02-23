@@ -12,7 +12,7 @@ const payAtHotelOnlyEl = document.getElementById("payAtHotelOnly");
 const summaryEl = document.getElementById("summary");
 const resultsEl = document.getElementById("results");
 
-const THEME_KEY = "stayscope-theme";
+const THEME_KEY = "hotel-scanner-theme";
 
 const HOTELS = [
   {
