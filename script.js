@@ -2,7 +2,7 @@ const root = document.documentElement;
 const themeBtn = document.getElementById("themeBtn");
 const searchBtn = document.getElementById("searchBtn");
 const destinationEl = document.getElementById("destination");
-const destinationSuggestionsEl = document.getElementById("destinationSuggestions");
+const suggestionEl = document.getElementById("destinationSuggestions");
 const checkInEl = document.getElementById("checkIn");
 const checkOutEl = document.getElementById("checkOut");
 const guestsEl = document.getElementById("guests");
@@ -12,10 +12,11 @@ const breakfastOnlyEl = document.getElementById("breakfastOnly");
 const payAtHotelOnlyEl = document.getElementById("payAtHotelOnly");
 const summaryEl = document.getElementById("summary");
 const resultsEl = document.getElementById("results");
+const minRatingEls = document.querySelectorAll("input[name='minRating']");
 
 const THEME_KEY = "hotel-scanner-theme";
-let hotelsData = [];
 let suggestTimer = null;
+let hotelsData = [];
 
 const FALLBACK_HOTELS = [
   {
@@ -73,14 +74,34 @@ function normalizeOffer(channel, nights, guests) {
   const tax = subtotal * Number(channel.taxRate || 0);
   const occupancyFee = guests > 2 ? (guests - 2) * 12000 * nights : 0;
   const total = subtotal + tax + Number(channel.fee || 0) + occupancyFee;
-
   return { ...channel, total };
 }
 
-function matchesDestination(hotel, query) {
-  if (!query) return true;
-  const haystack = `${hotel.name} ${hotel.area}`.toLowerCase();
-  return haystack.includes(query.toLowerCase().trim());
+function normalizeApiHotels(hotels) {
+  return (hotels || [])
+    .map((hotel) => ({
+      id: hotel.id || crypto.randomUUID(),
+      name: hotel.name || "호텔 이름 없음",
+      area: hotel.area || "지역 정보 없음",
+      rating: Number(hotel.rating || 0),
+      reviews: Number(hotel.reviews || 0),
+      channels: (hotel.channels || []).map((channel) => ({
+        source: channel.source || "Unknown",
+        nightly: Number(channel.nightly || 0),
+        taxRate: Number(channel.taxRate || 0),
+        fee: Number(channel.fee || 0),
+        refundable: Boolean(channel.refundable),
+        breakfast: Boolean(channel.breakfast),
+        payAtHotel: Boolean(channel.payAtHotel),
+        link: channel.link || "#"
+      }))
+    }))
+    .filter((hotel) => hotel.channels.length > 0);
+}
+
+function getMinRating() {
+  const picked = [...minRatingEls].find((el) => el.checked);
+  return Number(picked?.value || 0);
 }
 
 function applyTheme(theme) {
@@ -99,11 +120,39 @@ function initTheme() {
   applyTheme(prefersDark ? "dark" : "light");
 }
 
+function ensureValidDates() {
+  if (!checkInEl.value || !checkOutEl.value) return;
+  const checkIn = new Date(checkInEl.value);
+  const checkOut = new Date(checkOutEl.value);
+  if (checkOut <= checkIn) {
+    const fixed = new Date(checkIn);
+    fixed.setDate(fixed.getDate() + 1);
+    checkOutEl.value = fixed.toISOString().slice(0, 10);
+  }
+}
+
+function setDefaultDates() {
+  const today = new Date();
+  const checkIn = new Date(today);
+  checkIn.setDate(today.getDate() + 14);
+  const checkOut = new Date(checkIn);
+  checkOut.setDate(checkIn.getDate() + 1);
+  checkInEl.value = checkIn.toISOString().slice(0, 10);
+  checkOutEl.value = checkOut.toISOString().slice(0, 10);
+}
+
+function setLoadingState(loading) {
+  searchBtn.disabled = loading;
+  searchBtn.textContent = loading ? "검색 중..." : "검색";
+}
+
 function buildRows() {
   const nights = daysBetween(checkInEl.value, checkOutEl.value);
   const guests = Number(guestsEl.value);
+  const minRating = getMinRating();
 
   const rows = hotelsData
+    .filter((hotel) => Number(hotel.rating || 0) >= minRating)
     .map((hotel) => {
       const offers = (hotel.channels || [])
         .map((channel) => normalizeOffer(channel, nights, guests))
@@ -135,102 +184,63 @@ function render() {
   const rows = buildRows();
   if (rows.length === 0) {
     summaryEl.textContent = "조건에 맞는 호텔이 없습니다.";
-    resultsEl.innerHTML = '<div class="empty">필터를 줄이거나 목적지를 다시 입력해보세요.</div>';
+    resultsEl.innerHTML = '<div class="empty">필터를 줄이거나 검색 조건을 바꿔보세요.</div>';
     return;
   }
 
   const cheapestAll = rows.reduce((acc, row) => Math.min(acc, row.cheapest.total), Number.POSITIVE_INFINITY);
-  summaryEl.textContent = `${rows.length}개 호텔, 최저 ${formatKrw(cheapestAll)}부터 (${rows[0].nights}박 기준)`;
+  summaryEl.textContent = `${rows.length}개 호텔 | 최저 ${formatKrw(cheapestAll)}부터 (${rows[0].nights}박 기준)`;
 
   resultsEl.innerHTML = rows
-    .map((row, index) => {
-      const offers = row.offers
+    .map((row) => {
+      const channelRows = row.offers
         .map((offer) => {
           const diff = offer.total - row.cheapest.total;
-          const priceDiff = diff === 0 ? '<span class="best">최저가</span>' : `<span class="bad">+${formatKrw(diff)}</span>`;
+          const diffClass = diff === 0 ? "best" : "more";
+          const diffText = diff === 0 ? "최저가" : `+${formatKrw(diff)}`;
           const tags = [
             offer.refundable ? "무료취소" : "환불불가",
             offer.breakfast ? "조식포함" : "룸온리",
             offer.payAtHotel ? "현장결제" : "선결제"
           ];
+
           return `
-            <div class="offer-row">
-              <div class="offer-source">
-                <strong>${offer.source}</strong>
-                ${tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}
+            <div class="channel-row">
+              <div>
+                <div class="channel-name">${offer.source}</div>
+                <div class="channel-tags">${tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
               </div>
-              <div class="offer-price">${formatKrw(offer.total)} ${priceDiff}</div>
-              <a class="offer-link" href="${offer.link}" target="_blank" rel="noreferrer">이 채널로 이동</a>
+              <div class="channel-price">${formatKrw(offer.total)} <span class="${diffClass}">${diffText}</span></div>
+              <a class="channel-select" href="${offer.link}" target="_blank" rel="noreferrer">이 가격 선택</a>
             </div>
           `;
         })
         .join("");
 
       return `
-        <article class="hotel-card" style="animation-delay:${index * 70}ms">
-          <div class="hotel-head">
+        <article class="hotel-card" data-id="${row.hotel.id}">
+          <div class="card-main">
+            <div class="thumb"></div>
             <div>
-              <h2 class="hotel-title">${row.hotel.name}</h2>
-              <p class="sub">${row.hotel.area} · 평점 ${row.hotel.rating} (${Number(row.hotel.reviews || 0).toLocaleString("ko-KR")} 리뷰)</p>
+              <h3 class="hotel-title">${row.hotel.name}</h3>
+              <p class="hotel-sub">${row.hotel.area} · 평점 ${row.hotel.rating} (${Number(row.hotel.reviews || 0).toLocaleString("ko-KR")} 리뷰)</p>
+              <div class="chip-row">
+                <span class="chip">${row.offers.length}개 채널 비교</span>
+                <span class="chip">채널 최대 차이 ${formatKrw(row.spread)}</span>
+              </div>
             </div>
-            <div class="price-badge">
-              <strong>${formatKrw(row.cheapest.total)}</strong>
-              <span>${row.cheapest.source} 최저가 · 채널간 최대 ${formatKrw(row.spread)} 차이</span>
+            <div class="price-box">
+              <p>최저가</p>
+              <p class="value">${formatKrw(row.cheapest.total)}</p>
+              <p class="meta">${row.cheapest.source} 기준</p>
+              <button type="button" class="toggle-channels">가격표 선택</button>
             </div>
           </div>
-          <div class="offer-grid">${offers}</div>
+          <div class="channel-list">${channelRows}</div>
         </article>
       `;
     })
     .join("");
-}
-
-function ensureValidDates() {
-  if (!checkInEl.value || !checkOutEl.value) return;
-  const checkIn = new Date(checkInEl.value);
-  const checkOut = new Date(checkOutEl.value);
-  if (checkOut <= checkIn) {
-    const fixed = new Date(checkIn);
-    fixed.setDate(fixed.getDate() + 1);
-    checkOutEl.value = fixed.toISOString().slice(0, 10);
-  }
-}
-
-function setDefaultDates() {
-  const today = new Date();
-  const checkIn = new Date(today);
-  checkIn.setDate(today.getDate() + 14);
-  const checkOut = new Date(checkIn);
-  checkOut.setDate(checkIn.getDate() + 1);
-  checkInEl.value = checkIn.toISOString().slice(0, 10);
-  checkOutEl.value = checkOut.toISOString().slice(0, 10);
-}
-
-function setLoadingState(loading) {
-  searchBtn.disabled = loading;
-  searchBtn.textContent = loading ? "검색 중..." : "가격 스캔";
-}
-
-function normalizeApiHotels(hotels) {
-  return (hotels || [])
-    .map((hotel) => ({
-      id: hotel.id || crypto.randomUUID(),
-      name: hotel.name || "호텔 이름 없음",
-      area: hotel.area || "지역 정보 없음",
-      rating: Number(hotel.rating || 0),
-      reviews: Number(hotel.reviews || 0),
-      channels: (hotel.channels || []).map((channel) => ({
-        source: channel.source || "Unknown",
-        nightly: Number(channel.nightly || 0),
-        taxRate: Number(channel.taxRate || 0),
-        fee: Number(channel.fee || 0),
-        refundable: Boolean(channel.refundable),
-        breakfast: Boolean(channel.breakfast),
-        payAtHotel: Boolean(channel.payAtHotel),
-        link: channel.link || "#"
-      }))
-    }))
-    .filter((hotel) => hotel.channels.length > 0);
 }
 
 async function trackEvent(name, properties = {}) {
@@ -241,12 +251,12 @@ async function trackEvent(name, properties = {}) {
       body: JSON.stringify({ name, properties })
     });
   } catch {
-    // Ignore analytics failures.
+    // ignore
   }
 }
 
 function renderSuggestions(suggestions) {
-  destinationSuggestionsEl.innerHTML = (suggestions || [])
+  suggestionEl.innerHTML = (suggestions || [])
     .map((s) => `<option value="${String(s).replace(/"/g, "&quot;")}"></option>`)
     .join("");
 }
@@ -271,13 +281,13 @@ async function loadSearchResults() {
   ensureValidDates();
   const destination = destinationEl.value.trim();
   if (!destination) {
-    summaryEl.textContent = "목적지를 먼저 입력해 주세요.";
+    summaryEl.textContent = "여행지를 먼저 입력해 주세요.";
     resultsEl.innerHTML = '<div class="empty">예: Tokyo, Seoul, Busan</div>';
     return;
   }
 
   setLoadingState(true);
-  summaryEl.textContent = "검색 결과를 불러오는 중...";
+  summaryEl.textContent = "호텔 목록을 불러오는 중...";
 
   const params = new URLSearchParams({
     destination,
@@ -297,15 +307,18 @@ async function loadSearchResults() {
 
     await trackEvent("search_submitted", {
       destination,
-      guests: Number(guestsEl.value),
       checkIn: checkInEl.value,
       checkOut: checkOutEl.value,
+      guests: Number(guestsEl.value),
       provider: payload?.meta?.provider || "unknown",
       fallback: Boolean(payload?.meta?.fallback)
     });
   } catch {
-    hotelsData = FALLBACK_HOTELS.filter((hotel) => matchesDestination(hotel, destination));
-    summaryEl.textContent = "실시간 API 응답이 없어 데모 데이터로 표시합니다.";
+    hotelsData = FALLBACK_HOTELS.filter((hotel) =>
+      `${hotel.name} ${hotel.area}`.toLowerCase().includes(destination.toLowerCase())
+    );
+    if (hotelsData.length === 0) hotelsData = FALLBACK_HOTELS;
+    summaryEl.textContent = "실시간 응답이 없어 데모 목록으로 표시합니다.";
     render();
   } finally {
     setLoadingState(false);
@@ -321,7 +334,7 @@ themeBtn.addEventListener("click", () => {
   applyTheme(next);
 });
 
-[sortByEl, refundableOnlyEl, breakfastOnlyEl, payAtHotelOnlyEl, guestsEl].forEach((el) => {
+[sortByEl, refundableOnlyEl, breakfastOnlyEl, payAtHotelOnlyEl, guestsEl, ...minRatingEls].forEach((el) => {
   el.addEventListener("change", () => {
     render();
     trackEvent("filter_changed", {
@@ -329,6 +342,7 @@ themeBtn.addEventListener("click", () => {
       refundableOnly: refundableOnlyEl.checked,
       breakfastOnly: breakfastOnlyEl.checked,
       payAtHotelOnly: payAtHotelOnlyEl.checked,
+      minRating: getMinRating(),
       guests: Number(guestsEl.value)
     });
   });
@@ -341,17 +355,24 @@ themeBtn.addEventListener("click", () => {
   });
 });
 
-resultsEl.addEventListener("click", (event) => {
-  const anchor = event.target.closest("a.offer-link");
-  if (!anchor) return;
-  trackEvent("result_clicked", { href: anchor.href });
-});
-
 destinationEl.addEventListener("input", () => {
   clearTimeout(suggestTimer);
-  suggestTimer = setTimeout(() => {
-    loadSuggestions();
-  }, 200);
+  suggestTimer = setTimeout(loadSuggestions, 200);
+});
+
+resultsEl.addEventListener("click", (event) => {
+  const toggleBtn = event.target.closest(".toggle-channels");
+  if (toggleBtn) {
+    const card = toggleBtn.closest(".hotel-card");
+    card.classList.toggle("open");
+    toggleBtn.textContent = card.classList.contains("open") ? "가격표 닫기" : "가격표 선택";
+    return;
+  }
+
+  const link = event.target.closest(".channel-select");
+  if (link) {
+    trackEvent("result_clicked", { href: link.href });
+  }
 });
 
 setDefaultDates();

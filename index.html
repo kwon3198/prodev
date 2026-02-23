@@ -3,72 +3,83 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>호텔스캐너 | 호텔 메타서치 MVP</title>
+  <title>호텔스캐너 | 메타 가격 비교</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="orb orb-a"></div>
-  <div class="orb orb-b"></div>
-
-  <main class="page">
-    <header class="hero">
-      <p class="eyebrow">META HOTEL SEARCH</p>
+  <header class="topbar">
+    <div class="brand-wrap">
+      <p class="brand-sub">META PRICE SCANNER</p>
       <h1>호텔스캐너</h1>
-      <p class="hero-copy">채널별 숙박 가격을 한 번에 비교하는 호텔 가격 스캐너 MVP</p>
-      <button id="themeBtn" class="theme-btn" type="button">라이트 모드</button>
-    </header>
+    </div>
+    <button id="themeBtn" class="theme-btn" type="button">라이트 모드</button>
+  </header>
 
-    <section class="search-panel">
-      <div class="field">
-        <label for="destination">어디로 가세요?</label>
-        <input id="destination" type="text" placeholder="예: Tokyo, Seoul, Busan" list="destinationSuggestions" />
-        <datalist id="destinationSuggestions"></datalist>
-      </div>
-      <div class="field">
-        <label for="checkIn">체크인</label>
-        <input id="checkIn" type="date" />
-      </div>
-      <div class="field">
-        <label for="checkOut">체크아웃</label>
-        <input id="checkOut" type="date" />
-      </div>
-      <div class="field">
-        <label for="guests">인원</label>
-        <select id="guests">
-          <option value="1">성인 1</option>
-          <option value="2" selected>성인 2</option>
-          <option value="3">성인 3</option>
-          <option value="4">성인 4</option>
-        </select>
-      </div>
-      <button id="searchBtn" class="search-btn" type="button">가격 스캔</button>
-    </section>
-
-    <section class="toolbar">
-      <div class="filters">
-        <label><input id="refundableOnly" type="checkbox" /> 무료 취소만</label>
-        <label><input id="breakfastOnly" type="checkbox" /> 조식 포함만</label>
-        <label><input id="payAtHotelOnly" type="checkbox" /> 현장결제만</label>
-      </div>
-      <div class="sort-wrap">
-        <label for="sortBy">정렬</label>
-        <select id="sortBy">
-          <option value="price">총 결제금액 낮은순</option>
-          <option value="rating">평점 높은순</option>
-          <option value="gap">채널 가격차 큰순</option>
-        </select>
+  <main class="layout">
+    <section class="search-shell">
+      <div class="search-grid">
+        <div class="field destination">
+          <label for="destination">여행지</label>
+          <input id="destination" type="text" placeholder="도시, 지역, 호텔명 입력" list="destinationSuggestions" />
+          <datalist id="destinationSuggestions"></datalist>
+        </div>
+        <div class="field">
+          <label for="checkIn">체크인</label>
+          <input id="checkIn" type="date" />
+        </div>
+        <div class="field">
+          <label for="checkOut">체크아웃</label>
+          <input id="checkOut" type="date" />
+        </div>
+        <div class="field">
+          <label for="guests">인원</label>
+          <select id="guests">
+            <option value="1">성인 1</option>
+            <option value="2" selected>성인 2</option>
+            <option value="3">성인 3</option>
+            <option value="4">성인 4</option>
+          </select>
+        </div>
+        <button id="searchBtn" class="search-btn" type="button">검색</button>
       </div>
     </section>
 
-    <section class="meta">
-      <p id="summary">검색 결과를 불러오는 중...</p>
-      <p class="caption">실시간 API 우선, 실패 시 데모 데이터로 자동 전환됩니다.</p>
-    </section>
+    <section class="content-grid">
+      <aside class="sidebar">
+        <div class="panel">
+          <h2>필터</h2>
+          <label class="check"><input id="refundableOnly" type="checkbox" /> 무료 취소만</label>
+          <label class="check"><input id="breakfastOnly" type="checkbox" /> 조식 포함만</label>
+          <label class="check"><input id="payAtHotelOnly" type="checkbox" /> 현장 결제만</label>
+        </div>
 
-    <section id="results" class="results"></section>
+        <div class="panel">
+          <h2>평점</h2>
+          <label class="check"><input name="minRating" type="radio" value="0" checked /> 전체</label>
+          <label class="check"><input name="minRating" type="radio" value="4.5" /> 4.5 이상</label>
+          <label class="check"><input name="minRating" type="radio" value="4.0" /> 4.0 이상</label>
+          <label class="check"><input name="minRating" type="radio" value="3.5" /> 3.5 이상</label>
+        </div>
+      </aside>
+
+      <section class="results-wrap">
+        <div class="list-toolbar">
+          <p id="summary">검색 결과를 불러오는 중...</p>
+          <div class="sort-wrap">
+            <label for="sortBy">정렬</label>
+            <select id="sortBy">
+              <option value="price">최저가 순</option>
+              <option value="rating">평점 높은 순</option>
+              <option value="gap">채널 가격차 큰 순</option>
+            </select>
+          </div>
+        </div>
+        <div id="results" class="results"></div>
+      </section>
+    </section>
   </main>
 
   <script src="script.js"></script>
