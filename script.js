@@ -63,6 +63,15 @@ function normalizeApiHotels(hotels) {
     .filter((hotel) => hotel.channels.length > 0);
 }
 
+function channelButtonLabel(source) {
+  const s = String(source || "").toLowerCase();
+  if (s.includes("agoda")) return "아고다에서 보기";
+  if (s.includes("booking")) return "부킹닷컴에서 보기";
+  if (s.includes("expedia")) return "익스피디아에서 보기";
+  if (s.includes("amadeus")) return "채널 검색으로 이동";
+  return "이 가격 선택";
+}
+
 function getMinRating() {
   const picked = [...minRatingEls].find((el) => el.checked);
   return Number(picked?.value || 0);
@@ -177,7 +186,7 @@ function render() {
                 <div class="channel-tags">${tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
               </div>
               <div class="channel-price">${formatKrw(offer.total)} <span class="${diffClass}">${diffText}</span></div>
-              <a class="channel-select" href="${offer.link}" target="_blank" rel="noreferrer">아고다에서 검색</a>
+              <a class="channel-select" href="${offer.link}" target="_blank" rel="noreferrer">${channelButtonLabel(offer.source)}</a>
             </div>
           `;
         })
@@ -284,13 +293,8 @@ async function loadSearchResults() {
     });
   } catch (error) {
     hotelsData = [];
-    const message = String(error?.message || "");
-    if (message.includes("missing_amadeus_credentials")) {
-      summaryEl.textContent = "실시간 API 키가 설정되지 않았습니다. 관리자에게 AMADEUS 키 설정을 요청해 주세요.";
-    } else {
-      summaryEl.textContent = "실시간 호텔 결과를 가져오지 못했습니다. 검색 조건을 바꿔 다시 시도해 주세요.";
-    }
-    resultsEl.innerHTML = '<div class="empty">현재는 실데이터만 표시합니다. 조건/날짜를 바꿔 다시 검색해 주세요.</div>';
+    summaryEl.textContent = "실시간 호텔 결과를 가져오지 못했습니다.";
+    resultsEl.innerHTML = '<div class="empty">실데이터 전용 모드입니다. 관리자에게 API 키/제휴 연동(Agoda, Booking, Expedia, Amadeus) 설정 여부를 확인해 주세요.</div>';
   } finally {
     setLoadingState(false);
   }

@@ -31,7 +31,7 @@ function nightsBetween(checkInDate, checkOutDate) {
   return Math.max(1, nights);
 }
 
-function getDestinationKey(destination) {
+function destinationKey(destination) {
   const q = String(destination || "").toLowerCase().trim();
   if (q.includes("서울") || q.includes("seoul")) return "seoul";
   if (q.includes("도쿄") || q.includes("tokyo")) return "tokyo";
@@ -44,27 +44,94 @@ function getDestinationKey(destination) {
 }
 
 function buildAgodaSearchLink({ hotelName, destination, checkInDate, checkOutDate, adults }) {
-  // Agoda 공개 API 없이 가능한 범위에서 호텔명+날짜 기반 검색 딥링크.
-  const q = encodeURIComponent(`${hotelName} ${destination}`);
-  const p = new URLSearchParams({
+  const params = new URLSearchParams({
     textToSearch: `${hotelName} ${destination}`,
     checkIn: checkInDate,
     checkOut: checkOutDate,
     adults: String(adults),
     rooms: "1"
   });
-  return `https://www.agoda.com/ko-kr/search?${p.toString()}#${q}`;
+  return `https://www.agoda.com/ko-kr/search?${params.toString()}`;
+}
+
+function mergeHotels(hotels) {
+  const map = new Map();
+  for (const hotel of hotels) {
+    const key = `${hotel.name}|${hotel.area}`.toLowerCase();
+    if (!map.has(key)) {
+      map.set(key, { ...hotel, channels: [...hotel.channels] });
+      continue;
+    }
+    const current = map.get(key);
+    current.channels.push(...hotel.channels);
+    current.rating = Math.max(current.rating || 0, hotel.rating || 0);
+    current.reviews = Math.max(current.reviews || 0, hotel.reviews || 0);
+  }
+  return [...map.values()].filter((h) => (h.channels || []).length > 0);
+}
+
+function normalizeHotelShape(raw, providerName) {
+  const name = String(raw?.name || "").trim();
+  const area = String(raw?.area || raw?.city || raw?.district || "").trim();
+  if (!name || !area) return null;
+
+  const channels = Array.isArray(raw?.channels) ? raw.channels : [];
+  const normalizedChannels = channels
+    .map((c) => ({
+      source: String(c.source || providerName),
+      nightly: toNumeric(c.nightly),
+      taxRate: toNumeric(c.taxRate),
+      fee: toNumeric(c.fee),
+      refundable: Boolean(c.refundable),
+      breakfast: Boolean(c.breakfast),
+      payAtHotel: Boolean(c.payAtHotel),
+      link: String(c.link || "#")
+    }))
+    .filter((c) => c.nightly > 0);
+
+  if (normalizedChannels.length === 0) return null;
+  return {
+    id: String(raw?.id || crypto.randomUUID()),
+    name,
+    area,
+    rating: toNumeric(raw?.rating),
+    reviews: toNumeric(raw?.reviews),
+    channels: normalizedChannels
+  };
+}
+
+async function fetchProxyProvider({ providerName, endpoint, apiKey, payload }) {
+  if (!endpoint) return { provider: providerName, hotels: [], reason: "not_configured" };
+
+  const headers = { "content-type": "application/json" };
+  if (apiKey) headers.authorization = `Bearer ${apiKey}`;
+
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    return { provider: providerName, hotels: [], reason: `http_${res.status}` };
+  }
+
+  const body = await res.json();
+  const rawHotels = Array.isArray(body?.hotels) ? body.hotels : [];
+  const hotels = rawHotels
+    .map((h) => normalizeHotelShape(h, providerName))
+    .filter(Boolean);
+
+  return { provider: providerName, hotels, reason: hotels.length > 0 ? "ok" : "empty" };
 }
 
 async function getAmadeusToken(env) {
-  const clientId = env.AMADEUS_CLIENT_ID;
-  const clientSecret = env.AMADEUS_CLIENT_SECRET;
-  if (!clientId || !clientSecret) return null;
+  if (!env.AMADEUS_CLIENT_ID || !env.AMADEUS_CLIENT_SECRET) return null;
 
   const body = new URLSearchParams({
     grant_type: "client_credentials",
-    client_id: clientId,
-    client_secret: clientSecret
+    client_id: env.AMADEUS_CLIENT_ID,
+    client_secret: env.AMADEUS_CLIENT_SECRET
   });
 
   const tokenRes = await fetch("https://test.api.amadeus.com/v1/security/oauth2/token", {
@@ -79,8 +146,8 @@ async function getAmadeusToken(env) {
 }
 
 async function resolveCityCode(token, destination) {
-  const mapped = getDestinationKey(destination);
-  if (mapped && CITY_CODE_MAP[mapped]) return CITY_CODE_MAP[mapped];
+  const key = destinationKey(destination);
+  if (key && CITY_CODE_MAP[key]) return CITY_CODE_MAP[key];
 
   const url = new URL("https://test.api.amadeus.com/v1/reference-data/locations/cities");
   url.searchParams.set("keyword", destination);
@@ -92,35 +159,17 @@ async function resolveCityCode(token, destination) {
   if (!res.ok) return null;
 
   const data = await res.json();
-  const first = Array.isArray(data.data) ? data.data[0] : null;
-  return first?.iataCode || null;
+  return Array.isArray(data?.data) && data.data[0]?.iataCode ? data.data[0].iataCode : null;
 }
 
-function mergeHotelsById(hotels) {
-  const map = new Map();
-  for (const hotel of hotels) {
-    if (!map.has(hotel.id)) {
-      map.set(hotel.id, hotel);
-      continue;
-    }
-    map.get(hotel.id).channels.push(...hotel.channels);
-  }
-  return [...map.values()];
-}
-
-function channelFromOffer({ offer, nights, hotelName, destination, checkInDate, checkOutDate, adults }) {
+function channelFromAmadeusOffer({ offer, nights, hotelName, destination, checkInDate, checkOutDate, adults }) {
   const total = toNumeric(offer?.price?.total);
   const taxes = Array.isArray(offer?.price?.taxes) ? offer.price.taxes : [];
   const taxAmount = taxes.reduce((acc, t) => acc + toNumeric(t?.amount), 0);
-  const nightly = nights > 0 ? total / nights : total;
 
-  const roomText = [
-    offer?.room?.description?.text || "",
-    offer?.room?.typeEstimated?.category || ""
-  ]
+  const roomText = [offer?.room?.description?.text || "", offer?.room?.typeEstimated?.category || ""]
     .join(" ")
     .toLowerCase();
-
   const breakfast = roomText.includes("breakfast");
   const paymentType = String(offer?.policies?.paymentType || "").toUpperCase();
   const payAtHotel = paymentType.includes("HOTEL");
@@ -129,7 +178,7 @@ function channelFromOffer({ offer, nights, hotelName, destination, checkInDate, 
 
   return {
     source: "Amadeus Live",
-    nightly,
+    nightly: nights > 0 ? total / nights : total,
     taxRate: total > 0 ? taxAmount / total : 0,
     fee: 0,
     refundable,
@@ -139,14 +188,16 @@ function channelFromOffer({ offer, nights, hotelName, destination, checkInDate, 
   };
 }
 
-function areaFromHotel(hotel) {
+function areaFromAmadeusHotel(hotel) {
   const cityName = hotel?.address?.cityName || hotel?.cityCode || "Unknown";
   const lines = Array.isArray(hotel?.address?.lines) ? hotel.address.lines : [];
-  const district = lines[0] || "";
-  return district ? `${cityName} · ${district}` : cityName;
+  return lines[0] ? `${cityName} · ${lines[0]}` : cityName;
 }
 
-async function fetchAmadeusHotels({ token, cityCode, destination, checkInDate, checkOutDate, adults }) {
+async function fetchAmadeusHotels({ token, destination, checkInDate, checkOutDate, adults }) {
+  const cityCode = await resolveCityCode(token, destination);
+  if (!cityCode) return { provider: "amadeus", hotels: [], reason: "city_code_not_found" };
+
   const url = new URL("https://test.api.amadeus.com/v3/shopping/hotel-offers");
   url.searchParams.set("cityCode", cityCode);
   url.searchParams.set("checkInDate", checkInDate);
@@ -159,19 +210,21 @@ async function fetchAmadeusHotels({ token, cityCode, destination, checkInDate, c
   const res = await fetch(url.toString(), {
     headers: { Authorization: `Bearer ${token}` }
   });
-  if (!res.ok) return [];
+
+  if (!res.ok) return { provider: "amadeus", hotels: [], reason: `http_${res.status}`, cityCode };
 
   const data = await res.json();
-  const offers = Array.isArray(data.data) ? data.data : [];
+  const entries = Array.isArray(data?.data) ? data.data : [];
   const nights = nightsBetween(checkInDate, checkOutDate);
   const hotels = [];
 
-  for (const item of offers.slice(0, 80)) {
+  for (const item of entries.slice(0, 100)) {
     const hotelInfo = item?.hotel || {};
     const hotelName = hotelInfo.name || "Unnamed Hotel";
-    const list = Array.isArray(item?.offers) ? item.offers : [];
-    for (const offer of list.slice(0, 4)) {
-      const channel = channelFromOffer({
+    const offers = Array.isArray(item?.offers) ? item.offers : [];
+
+    for (const offer of offers.slice(0, 4)) {
+      const channel = channelFromAmadeusOffer({
         offer,
         nights,
         hotelName,
@@ -180,10 +233,12 @@ async function fetchAmadeusHotels({ token, cityCode, destination, checkInDate, c
         checkOutDate,
         adults
       });
+
+      if (channel.nightly <= 0) continue;
       hotels.push({
         id: hotelInfo.hotelId || crypto.randomUUID(),
         name: hotelName,
-        area: areaFromHotel(hotelInfo),
+        area: areaFromAmadeusHotel(hotelInfo),
         rating: toNumeric(hotelInfo.rating),
         reviews: 0,
         channels: [channel]
@@ -191,7 +246,12 @@ async function fetchAmadeusHotels({ token, cityCode, destination, checkInDate, c
     }
   }
 
-  return mergeHotelsById(hotels).filter((hotel) => hotel.channels.length > 0);
+  return {
+    provider: "amadeus",
+    cityCode,
+    hotels: mergeHotels(hotels),
+    reason: hotels.length > 0 ? "ok" : "empty"
+  };
 }
 
 export async function onRequestGet(context) {
@@ -207,37 +267,93 @@ export async function onRequestGet(context) {
   }
 
   const token = await getAmadeusToken(env);
-  if (!token) {
-    return json({ error: "missing_amadeus_credentials" }, 503);
-  }
+  const providerStatus = [];
+  const providerHotels = [];
 
-  const cityCode = await resolveCityCode(token, destination);
-  if (!cityCode) {
-    return json({ error: "city_code_not_found" }, 404);
-  }
-
-  try {
-    const hotels = await fetchAmadeusHotels({
-      token,
-      cityCode,
-      destination,
-      checkInDate,
-      checkOutDate,
-      adults
-    });
-
-    if (hotels.length === 0) {
-      return json({ error: "no_live_offers" }, 404);
+  if (token) {
+    try {
+      const amadeus = await fetchAmadeusHotels({
+        token,
+        destination,
+        checkInDate,
+        checkOutDate,
+        adults
+      });
+      providerStatus.push({
+        provider: "amadeus",
+        reason: amadeus.reason,
+        cityCode: amadeus.cityCode || null,
+        count: amadeus.hotels.length
+      });
+      providerHotels.push(...amadeus.hotels);
+    } catch (error) {
+      providerStatus.push({
+        provider: "amadeus",
+        reason: "upstream_error",
+        message: String(error?.message || error),
+        count: 0
+      });
     }
-
-    return json({
-      hotels,
-      meta: { provider: "amadeus-live", fallback: false, cityCode }
-    });
-  } catch (error) {
-    return json({
-      error: "upstream_error",
-      message: String(error?.message || error)
-    }, 502);
+  } else {
+    providerStatus.push({ provider: "amadeus", reason: "missing_credentials", count: 0 });
   }
+
+  const proxyPayload = { destination, checkInDate, checkOutDate, adults };
+  const proxyProviders = [
+    {
+      providerName: "agoda",
+      endpoint: env.AGODA_SEARCH_ENDPOINT,
+      apiKey: env.AGODA_API_KEY
+    },
+    {
+      providerName: "booking",
+      endpoint: env.BOOKING_SEARCH_ENDPOINT,
+      apiKey: env.BOOKING_API_KEY
+    },
+    {
+      providerName: "expedia",
+      endpoint: env.EXPEDIA_SEARCH_ENDPOINT,
+      apiKey: env.EXPEDIA_API_KEY
+    }
+  ];
+
+  const settled = await Promise.allSettled(
+    proxyProviders.map((p) => fetchProxyProvider({ ...p, payload: proxyPayload }))
+  );
+
+  for (const item of settled) {
+    if (item.status === "rejected") {
+      providerStatus.push({
+        provider: "proxy",
+        reason: "request_failed",
+        message: String(item.reason || "unknown"),
+        count: 0
+      });
+      continue;
+    }
+    providerStatus.push({
+      provider: item.value.provider,
+      reason: item.value.reason,
+      count: item.value.hotels.length
+    });
+    providerHotels.push(...item.value.hotels);
+  }
+
+  const merged = mergeHotels(providerHotels);
+  if (merged.length === 0) {
+    return json({
+      error: "no_live_offers",
+      message: "No live hotel offers from configured providers",
+      providers: providerStatus
+    }, 404);
+  }
+
+  return json({
+    hotels: merged,
+    meta: {
+      provider: "multi-live",
+      fallback: false,
+      providers: providerStatus
+    }
+  });
 }

@@ -18,7 +18,8 @@
 
 - `GET /api/search`
   - query: `destination`, `checkIn`, `checkOut`, `guests`
-  - 우선 Amadeus 테스트 API 사용, 실패 시 fallback
+  - 실시간 공급자 결과만 사용 (가짜/fallback 가격 없음)
+  - Amadeus + (선택) Agoda/Booking/Expedia 프록시 결과 병합
 - `GET /api/suggest`
   - query: `q`
   - 우선 Naver Local API 사용, 실패 시 fallback
@@ -39,6 +40,12 @@
 - `NAVER_CLIENT_SECRET`
 - `POSTHOG_KEY`
 - `POSTHOG_HOST`
+- `AGODA_SEARCH_ENDPOINT`
+- `AGODA_API_KEY`
+- `BOOKING_SEARCH_ENDPOINT`
+- `BOOKING_API_KEY`
+- `EXPEDIA_SEARCH_ENDPOINT`
+- `EXPEDIA_API_KEY`
 
 Cloudflare Pages 설정은 `DEPLOY_SETUP.md` 참고.
 
