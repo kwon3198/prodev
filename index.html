@@ -14,12 +14,23 @@
     <div class="brand-wrap">
       <p class="brand-sub">META PRICE SCANNER</p>
       <h1>호텔스캐너</h1>
+      <p class="brand-desc">전 세계 숙소 요금을 한 번에 비교하고, 원하는 채널의 가격표를 직접 선택하세요.</p>
     </div>
     <button id="themeBtn" class="theme-btn" type="button">라이트 모드</button>
   </header>
 
   <main class="layout">
     <section id="searchShell" class="search-shell search-shell-hero">
+      <div class="hero-copy">
+        <h2>항공처럼 숙소도 비교 검색</h2>
+        <p>아고다 스타일 검색 흐름으로 목적지와 날짜를 먼저 입력하고, 검색 후 호텔 리스트에서 채널별 가격을 고르세요.</p>
+        <div class="hero-badges">
+          <span>실시간 API 우선 조회</span>
+          <span>무료취소/조식/현장결제 필터</span>
+          <span>채널 가격표 한눈에 비교</span>
+        </div>
+      </div>
+
       <div class="search-grid">
         <div class="field destination">
           <label for="destination">여행지</label>
@@ -45,6 +56,8 @@
         </div>
         <button id="searchBtn" class="search-btn" type="button">검색</button>
       </div>
+
+      <p class="search-footnote">검색 후에는 아고다처럼 호텔 리스트가 펼쳐지고, 각 호텔에서 채널별 가격표를 선택할 수 있습니다.</p>
     </section>
 
     <section id="resultsSection" class="content-grid hidden">
@@ -67,7 +80,10 @@
 
       <section class="results-wrap">
         <div class="list-toolbar">
-          <p id="summary">검색 결과를 불러오는 중...</p>
+          <div>
+            <p id="summary">검색 결과를 불러오는 중...</p>
+            <p class="list-note">최저가 기준으로 추천되며, 가격표 선택을 눌러 채널별 상세 금액을 비교할 수 있습니다.</p>
+          </div>
           <div class="sort-wrap">
             <label for="sortBy">정렬</label>
             <select id="sortBy">

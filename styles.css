@@ -63,6 +63,12 @@ body {
   font-size: clamp(1.45rem, 3vw, 2rem);
 }
 
+.brand-desc {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .theme-btn {
   border: 1px solid var(--panel-border);
   border-radius: 999px;
@@ -97,7 +103,35 @@ body {
 .search-shell-hero {
   min-height: calc(100vh - 140px);
   display: grid;
+  gap: 14px;
   align-items: center;
+}
+
+.hero-copy h2 {
+  margin: 0;
+  font-size: clamp(1.25rem, 3vw, 1.9rem);
+}
+
+.hero-copy p {
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.hero-badges {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hero-badges span {
+  background: var(--chip);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted);
 }
 
 .search-grid {
@@ -138,6 +172,12 @@ select {
   font: inherit;
   font-weight: 800;
   cursor: pointer;
+}
+
+.search-footnote {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .content-grid {
@@ -192,6 +232,12 @@ select {
 #summary {
   margin: 0;
   font-weight: 700;
+}
+
+.list-note {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
 }
 
 .sort-wrap {
