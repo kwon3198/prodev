@@ -1,41 +1,25 @@
-const FALLBACK_HOTELS = [
-  {
-    id: "demo-tokyo-1",
-    name: "Shibuya Axis Hotel",
-    area: "Tokyo",
-    rating: 4.7,
-    reviews: 2140,
-    channels: [
-      { source: "Agoda", nightly: 138000, taxRate: 0.1, fee: 12000, refundable: true, breakfast: false, payAtHotel: false, link: "https://www.agoda.com" },
-      { source: "Google Hotels", nightly: 145000, taxRate: 0.1, fee: 6000, refundable: true, breakfast: true, payAtHotel: false, link: "https://www.google.com/travel/hotels" },
-      { source: "Naver Stay", nightly: 132000, taxRate: 0.1, fee: 18000, refundable: false, breakfast: false, payAtHotel: false, link: "https://travel.naver.com" }
-    ]
+const DEMO_CATALOG = {
+  seoul: {
+    cityLabel: "서울",
+    basePrice: 118000,
+    areas: ["강남", "명동", "홍대", "잠실", "여의도", "광화문", "이태원", "동대문"]
   },
-  {
-    id: "demo-seoul-1",
-    name: "Hangang Pulse Hotel",
-    area: "Seoul",
-    rating: 4.5,
-    reviews: 1840,
-    channels: [
-      { source: "Agoda", nightly: 121000, taxRate: 0.1, fee: 9000, refundable: false, breakfast: false, payAtHotel: false, link: "https://www.agoda.com" },
-      { source: "Google Hotels", nightly: 127000, taxRate: 0.1, fee: 8000, refundable: true, breakfast: false, payAtHotel: false, link: "https://www.google.com/travel/hotels" },
-      { source: "Naver Stay", nightly: 118000, taxRate: 0.1, fee: 14000, refundable: true, breakfast: true, payAtHotel: false, link: "https://travel.naver.com" }
-    ]
+  tokyo: {
+    cityLabel: "도쿄",
+    basePrice: 132000,
+    areas: ["시부야", "신주쿠", "긴자", "아사쿠사", "우에노", "롯폰기", "이케부쿠로", "도쿄역"]
   },
-  {
-    id: "demo-busan-1",
-    name: "Haeundae Coastline Suites",
-    area: "Busan",
-    rating: 4.3,
-    reviews: 980,
-    channels: [
-      { source: "Agoda", nightly: 98000, taxRate: 0.1, fee: 10000, refundable: true, breakfast: false, payAtHotel: false, link: "https://www.agoda.com" },
-      { source: "Google Hotels", nightly: 104000, taxRate: 0.1, fee: 5000, refundable: true, breakfast: true, payAtHotel: false, link: "https://www.google.com/travel/hotels" },
-      { source: "Naver Stay", nightly: 96000, taxRate: 0.1, fee: 14000, refundable: false, breakfast: false, payAtHotel: false, link: "https://travel.naver.com" }
-    ]
+  busan: {
+    cityLabel: "부산",
+    basePrice: 99000,
+    areas: ["해운대", "광안리", "서면", "남포동", "송정", "기장"]
+  },
+  osaka: {
+    cityLabel: "오사카",
+    basePrice: 121000,
+    areas: ["난바", "우메다", "신사이바시", "덴노지", "신오사카", "교바시"]
   }
-];
+};
 
 const CITY_CODE_MAP = {
   tokyo: "TYO",
@@ -72,7 +56,89 @@ function destinationMatches(hotel, destination) {
 }
 
 function fallbackResponse(destination) {
-  return FALLBACK_HOTELS.filter((hotel) => destinationMatches(hotel, destination));
+  const list = buildDemoHotels(destination);
+  return list.filter((hotel) => destinationMatches(hotel, destination));
+}
+
+function getDestinationKey(destination) {
+  const q = String(destination || "").toLowerCase().trim();
+  if (q.includes("서울") || q.includes("seoul")) return "seoul";
+  if (q.includes("도쿄") || q.includes("tokyo")) return "tokyo";
+  if (q.includes("부산") || q.includes("busan")) return "busan";
+  if (q.includes("오사카") || q.includes("osaka")) return "osaka";
+  return null;
+}
+
+function buildChannels(basePrice, idx) {
+  const delta = (idx % 5) * 2200;
+  return [
+    {
+      source: "Agoda",
+      nightly: basePrice - 2500 + delta,
+      taxRate: 0.1,
+      fee: 9000 + (idx % 3) * 1000,
+      refundable: idx % 2 === 0,
+      breakfast: idx % 3 === 0,
+      payAtHotel: false,
+      link: "https://www.agoda.com"
+    },
+    {
+      source: "Google Hotels",
+      nightly: basePrice + 1800 + delta,
+      taxRate: 0.1,
+      fee: 6500 + (idx % 4) * 800,
+      refundable: true,
+      breakfast: idx % 2 === 1,
+      payAtHotel: false,
+      link: "https://www.google.com/travel/hotels"
+    },
+    {
+      source: "Naver Stay",
+      nightly: basePrice - 1200 + delta,
+      taxRate: 0.1,
+      fee: 11000 + (idx % 2) * 2000,
+      refundable: idx % 3 !== 0,
+      breakfast: idx % 4 === 0,
+      payAtHotel: false,
+      link: "https://travel.naver.com"
+    },
+    {
+      source: "Official",
+      nightly: basePrice + 3200 + delta,
+      taxRate: 0.1,
+      fee: 0,
+      refundable: true,
+      breakfast: idx % 2 === 0,
+      payAtHotel: true,
+      link: "https://example.com"
+    }
+  ];
+}
+
+function buildDemoHotels(destination) {
+  const key = getDestinationKey(destination);
+  const preset = key ? DEMO_CATALOG[key] : null;
+  const cityLabel = preset?.cityLabel || String(destination || "검색도시");
+  const areas = preset?.areas || ["시내", "역세권", "비즈니스지구", "관광지 인근"];
+  const basePrice = preset?.basePrice || 112000;
+  const hotels = [];
+
+  let idx = 0;
+  for (const area of areas) {
+    for (let i = 1; i <= 3; i += 1) {
+      idx += 1;
+      const price = basePrice + idx * 1800 + i * 1200;
+      hotels.push({
+        id: `demo-${cityLabel}-${area}-${i}`.replace(/\s+/g, "-").toLowerCase(),
+        name: `${area} ${["스테이", "호텔", "스위트"][i % 3]} ${i}`,
+        area: `${cityLabel} · ${area}`,
+        rating: Number((3.9 + ((idx % 12) * 0.1)).toFixed(1)),
+        reviews: 380 + idx * 47,
+        channels: buildChannels(price, idx)
+      });
+    }
+  }
+  return hotels;
 }
 
 async function getAmadeusToken(env) {
@@ -165,6 +231,14 @@ function hotelFromOffer(offer, channel) {
   };
 }
 
+function assignAreaByCityCode(cityCode, index) {
+  const key = cityCode === "SEL" ? "seoul" : cityCode === "TYO" ? "tokyo" : cityCode === "PUS" ? "busan" : cityCode === "OSA" ? "osaka" : null;
+  if (!key) return cityCode || "Unknown";
+  const preset = DEMO_CATALOG[key];
+  const area = preset.areas[index % preset.areas.length];
+  return `${preset.cityLabel} · ${area}`;
+}
+
 function mergeHotelsById(hotels) {
   const map = new Map();
   for (const hotel of hotels) {
@@ -205,7 +279,9 @@ async function fetchAmadeusHotels({ token, cityCode, checkInDate, checkOutDate, 
     }
   }
 
-  return mergeHotelsById(hotels).filter((hotel) => hotel.channels.length > 0);
+  return mergeHotelsById(hotels)
+    .map((hotel, index) => ({ ...hotel, area: assignAreaByCityCode(cityCode, index) }))
+    .filter((hotel) => hotel.channels.length > 0);
 }
 
 export async function onRequestGet(context) {
@@ -245,10 +321,10 @@ export async function onRequestGet(context) {
       adults
     });
 
-    if (hotels.length === 0) {
+    if (hotels.length < 8) {
       return json({
-        hotels: fallbackResponse(destination),
-        meta: { provider: "demo", fallback: true, reason: "no_offers" }
+        hotels: buildDemoHotels(destination),
+        meta: { provider: "demo", fallback: true, reason: "insufficient_live_offers", cityCode }
       });
     }
 
