@@ -12,11 +12,14 @@ const breakfastOnlyEl = document.getElementById("breakfastOnly");
 const payAtHotelOnlyEl = document.getElementById("payAtHotelOnly");
 const summaryEl = document.getElementById("summary");
 const resultsEl = document.getElementById("results");
+const resultsSectionEl = document.getElementById("resultsSection");
+const searchShellEl = document.getElementById("searchShell");
 const minRatingEls = document.querySelectorAll("input[name='minRating']");
 
 const THEME_KEY = "hotel-scanner-theme";
 let suggestTimer = null;
 let hotelsData = [];
+let hasSearched = false;
 
 const FALLBACK_HOTELS = [
   {
@@ -181,6 +184,8 @@ function buildRows() {
 }
 
 function render() {
+  if (!hasSearched) return;
+
   const rows = buildRows();
   if (rows.length === 0) {
     summaryEl.textContent = "조건에 맞는 호텔이 없습니다.";
@@ -287,6 +292,9 @@ async function loadSearchResults() {
   }
 
   setLoadingState(true);
+  hasSearched = true;
+  resultsSectionEl.classList.remove("hidden");
+  searchShellEl.classList.remove("search-shell-hero");
   summaryEl.textContent = "호텔 목록을 불러오는 중...";
 
   const params = new URLSearchParams({
@@ -376,6 +384,6 @@ resultsEl.addEventListener("click", (event) => {
 });
 
 setDefaultDates();
-destinationEl.value = "Tokyo";
 initTheme();
-loadSearchResults();
+resultsSectionEl.classList.add("hidden");
+searchShellEl.classList.add("search-shell-hero");
