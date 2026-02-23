@@ -14,7 +14,7 @@ const resultsEl = document.getElementById("results");
 
 const THEME_KEY = "hotel-scanner-theme";
 
-const HOTELS = [
+const FALLBACK_HOTELS = [
   {
     id: "tokyo-1",
     name: "Shibuya Axis Hotel",
@@ -69,6 +69,8 @@ const HOTELS = [
   }
 ];
 
+let hotelsData = FALLBACK_HOTELS;
+
 function formatKrw(value) {
   return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
@@ -82,10 +84,10 @@ function daysBetween(startStr, endStr) {
 }
 
 function normalizeOffer(channel, nights, guests) {
-  const subtotal = channel.nightly * nights;
-  const tax = subtotal * channel.taxRate;
+  const subtotal = Number(channel.nightly) * nights;
+  const tax = subtotal * Number(channel.taxRate || 0);
   const occupancyFee = guests > 2 ? (guests - 2) * 12000 * nights : 0;
-  const total = subtotal + tax + channel.fee + occupancyFee;
+  const total = subtotal + tax + Number(channel.fee || 0) + occupancyFee;
 
   return {
     ...channel,
@@ -123,11 +125,10 @@ function buildRows() {
   const guests = Number(guestsEl.value);
   const destination = destinationEl.value;
 
-  const filteredHotels = HOTELS.filter((hotel) => hotelMatchesDestination(hotel, destination));
-
+  const filteredHotels = hotelsData.filter((hotel) => hotelMatchesDestination(hotel, destination));
   const rows = filteredHotels
     .map((hotel) => {
-      const offers = hotel.channels
+      const offers = (hotel.channels || [])
         .map((channel) => normalizeOffer(channel, nights, guests))
         .filter((offer) => (refundableOnlyEl.checked ? offer.refundable : true))
         .filter((offer) => (breakfastOnlyEl.checked ? offer.breakfast : true))
@@ -166,7 +167,6 @@ function render() {
   }
 
   const cheapestAll = rows.reduce((acc, row) => (row.cheapest.total < acc ? row.cheapest.total : acc), Number.POSITIVE_INFINITY);
-
   summaryEl.textContent = `${rows.length}개 호텔, 최저 ${formatKrw(cheapestAll)}부터 (${rows[0].nights}박 기준)`;
 
   resultsEl.innerHTML = rows
@@ -175,7 +175,7 @@ function render() {
         <div class="hotel-head">
           <div>
             <h2 class="hotel-title">${row.hotel.name}</h2>
-            <p class="sub">${row.hotel.area} · 평점 ${row.hotel.rating} (${row.hotel.reviews.toLocaleString("ko-KR")} 리뷰)</p>
+            <p class="sub">${row.hotel.area} · 평점 ${row.hotel.rating} (${Number(row.hotel.reviews || 0).toLocaleString("ko-KR")} 리뷰)</p>
           </div>
           <div class="price-badge">
             <strong>${formatKrw(row.cheapest.total)}</strong>
@@ -236,9 +236,84 @@ function ensureValidDates() {
   }
 }
 
-searchBtn.addEventListener("click", () => {
+function setLoadingState(loading) {
+  searchBtn.disabled = loading;
+  searchBtn.textContent = loading ? "검색 중..." : "가격 스캔";
+}
+
+function normalizeApiHotels(hotels) {
+  return hotels
+    .map((hotel) => ({
+      id: hotel.id || crypto.randomUUID(),
+      name: hotel.name || "호텔 이름 없음",
+      area: hotel.area || "지역 정보 없음",
+      rating: Number(hotel.rating || 0),
+      reviews: Number(hotel.reviews || 0),
+      channels: (hotel.channels || []).map((channel) => ({
+        source: channel.source || "Unknown",
+        nightly: Number(channel.nightly || 0),
+        taxRate: Number(channel.taxRate || 0),
+        fee: Number(channel.fee || 0),
+        refundable: Boolean(channel.refundable),
+        breakfast: Boolean(channel.breakfast),
+        payAtHotel: Boolean(channel.payAtHotel),
+        link: channel.link || "#"
+      }))
+    }))
+    .filter((hotel) => hotel.channels.length > 0);
+}
+
+async function loadSearchResults() {
   ensureValidDates();
-  render();
+  const destination = destinationEl.value.trim();
+  const checkIn = checkInEl.value;
+  const checkOut = checkOutEl.value;
+  const guests = guestsEl.value;
+
+  if (!destination) {
+    summaryEl.textContent = "목적지를 먼저 입력해 주세요.";
+    resultsEl.innerHTML = '<div class="empty">예: Tokyo, Seoul, Busan</div>';
+    return;
+  }
+
+  setLoadingState(true);
+  summaryEl.textContent = "검색 결과를 불러오는 중...";
+
+  try {
+    const params = new URLSearchParams({
+      destination,
+      checkIn,
+      checkOut,
+      guests
+    });
+    const response = await fetch(`/api/search?${params.toString()}`);
+    const payload = await response.json();
+
+    if (!response.ok) {
+      throw new Error(payload.error || "검색 API 호출 실패");
+    }
+
+    const normalizedHotels = normalizeApiHotels(payload.hotels || []);
+    if (normalizedHotels.length === 0) {
+      hotelsData = [];
+      summaryEl.textContent = "조건에 맞는 호텔이 없습니다.";
+      resultsEl.innerHTML = '<div class="empty">검색 조건을 바꿔서 다시 시도해보세요.</div>';
+      return;
+    }
+
+    hotelsData = normalizedHotels;
+    render();
+  } catch (error) {
+    hotelsData = FALLBACK_HOTELS;
+    summaryEl.textContent = "실시간 API 응답이 없어 데모 데이터로 표시합니다.";
+    render();
+  } finally {
+    setLoadingState(false);
+  }
+}
+
+searchBtn.addEventListener("click", () => {
+  loadSearchResults();
 });
 
 themeBtn.addEventListener("click", () => {
@@ -256,11 +331,11 @@ themeBtn.addEventListener("click", () => {
 [checkInEl, checkOutEl].forEach((el) => {
   el.addEventListener("change", () => {
     ensureValidDates();
-    render();
+    loadSearchResults();
   });
 });
 
 setDefaultDates();
 destinationEl.value = "Tokyo";
 initTheme();
-render();
+loadSearchResults();
