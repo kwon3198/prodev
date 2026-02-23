@@ -2,6 +2,7 @@ const root = document.documentElement;
 const themeBtn = document.getElementById("themeBtn");
 const searchBtn = document.getElementById("searchBtn");
 const destinationEl = document.getElementById("destination");
+const destinationSuggestionsEl = document.getElementById("destinationSuggestions");
 const checkInEl = document.getElementById("checkIn");
 const checkOutEl = document.getElementById("checkOut");
 const guestsEl = document.getElementById("guests");
@@ -14,6 +15,7 @@ const resultsEl = document.getElementById("results");
 
 const THEME_KEY = "hotel-scanner-theme";
 let hotelsData = [];
+let suggestTimer = null;
 
 const FALLBACK_HOTELS = [
   {
@@ -245,6 +247,28 @@ async function trackEvent(name, properties = {}) {
   }
 }
 
+function renderSuggestions(suggestions) {
+  destinationSuggestionsEl.innerHTML = (suggestions || [])
+    .map((s) => `<option value="${String(s).replace(/"/g, "&quot;")}"></option>`)
+    .join("");
+}
+
+async function loadSuggestions() {
+  const q = destinationEl.value.trim();
+  if (q.length < 2) {
+    renderSuggestions([]);
+    return;
+  }
+  try {
+    const response = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`);
+    const payload = await response.json();
+    if (!response.ok) return;
+    renderSuggestions(payload.suggestions || []);
+  } catch {
+    renderSuggestions([]);
+  }
+}
+
 async function loadSearchResults() {
   ensureValidDates();
   const destination = destinationEl.value.trim();
@@ -323,6 +347,13 @@ resultsEl.addEventListener("click", (event) => {
   const anchor = event.target.closest("a.offer-link");
   if (!anchor) return;
   trackEvent("result_clicked", { href: anchor.href });
+});
+
+destinationEl.addEventListener("input", () => {
+  clearTimeout(suggestTimer);
+  suggestTimer = setTimeout(() => {
+    loadSuggestions();
+  }, 200);
 });
 
 setDefaultDates();
